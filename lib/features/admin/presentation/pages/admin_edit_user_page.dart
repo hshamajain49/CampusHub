@@ -228,7 +228,7 @@ class _EditUserBodyState extends State<_EditUserBody> {
                   ),
                   DropdownMenuItem(
                     value: UserRole.venueCoordinator,
-                    child: Text('Venue Coordinator'),
+                    child: Text('Venue Coordinator/Lecturer'),
                   ),
                   DropdownMenuItem(value: UserRole.admin, child: Text('Admin')),
                 ],
@@ -243,14 +243,28 @@ class _EditUserBodyState extends State<_EditUserBody> {
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   initialValue: _department,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
                   ),
                   hint: const Text('Select department'),
-                  items: kDepartmentOptions
-                      .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                      .toList(),
-                  onChanged: (value) => setState(() => _department = value),
+                  items: kDepartmentOptions.map((d) {
+                    return DropdownMenuItem<String>(
+                      value: d,
+                      child: Text(
+                        d,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => _department = value);
+                  },
                 ),
               ],
               const SizedBox(height: 32),
