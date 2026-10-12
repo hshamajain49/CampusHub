@@ -9,6 +9,13 @@ class AppTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final Widget? suffixIcon;
+  final IconData? prefixIcon;
+  final int maxLines;
+  final int? minLines;
+  final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final Iterable<String>? autofillHints;
+  final ValueChanged<String>? onFieldSubmitted;
 
   const AppTextField({
     super.key,
@@ -19,19 +26,35 @@ class AppTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.validator,
     this.suffixIcon,
+    this.prefixIcon,
+    this.maxLines = 1,
+    this.minLines,
+    this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
+    this.onFieldSubmitted,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isMultiline = maxLines > 1;
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
-      keyboardType: keyboardType,
+      keyboardType: isMultiline ? TextInputType.multiline : keyboardType,
       validator: validator,
-      style: AppTextStyles.body,
+      maxLines: obscureText ? 1 : maxLines,
+      minLines: minLines,
+      textInputAction: textInputAction,
+      textCapitalization: textCapitalization,
+      autofillHints: autofillHints,
+      onFieldSubmitted: onFieldSubmitted,
+      style: AppTextStyles.body.copyWith(fontSize: 15),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        alignLabelWithHint: isMultiline,
+        prefixIcon: prefixIcon == null ? null : Icon(prefixIcon, size: 20),
         suffixIcon: suffixIcon,
       ),
     );

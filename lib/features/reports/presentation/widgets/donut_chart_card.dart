@@ -4,7 +4,8 @@ import '../../../../core/theme/app_text_styles.dart';
 import 'chart_datum.dart';
 import 'report_card.dart';
 
-/// Donut chart with a legend. Segments with value 0 are skipped.
+/// Donut chart with the total in the centre and a legend. Segments with
+/// value 0 are skipped.
 class DonutChartCard extends StatelessWidget {
   final String title;
   final List<ChartDatum> data;
@@ -17,29 +18,45 @@ class DonutChartCard extends StatelessWidget {
 
     return ReportCard(
       title: title,
+      subtitle: total == 0 ? null : '$total total',
       child: total == 0
           ? const _EmptyState()
           : Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: PieChart(
-                    PieChartData(
-                      sections: nonZero
-                          .map(
-                            (d) => PieChartSectionData(
-                              value: d.value.toDouble(),
-                              color: d.color,
-                              title: '',
-                              radius: 26,
-                            ),
-                          )
-                          .toList(),
-                      sectionsSpace: 2,
-                      centerSpaceRadius: 34,
-                    ),
+                  width: 124,
+                  height: 124,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          sections: nonZero
+                              .map(
+                                (d) => PieChartSectionData(
+                                  value: d.value.toDouble(),
+                                  color: d.color,
+                                  title: '',
+                                  radius: 20,
+                                ),
+                              )
+                              .toList(),
+                          sectionsSpace: 3,
+                          centerSpaceRadius: 40,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$total',
+                            style: AppTextStyles.h2.copyWith(height: 1.1),
+                          ),
+                          Text('total', style: AppTextStyles.caption),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 20),
@@ -49,7 +66,7 @@ class DonutChartCard extends StatelessWidget {
                     children: nonZero.map((d) {
                       final pct = ((d.value / total) * 100).round();
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 5),
                         child: Row(
                           children: [
                             Container(
@@ -57,20 +74,19 @@ class DonutChartCard extends StatelessWidget {
                               height: 10,
                               decoration: BoxDecoration(
                                 color: d.color,
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.circular(3),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 d.label,
-                                style: AppTextStyles.bodySecondary,
+                                style: AppTextStyles.bodySecondary.copyWith(
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
-                            Text(
-                              '${d.value} · $pct%',
-                              style: AppTextStyles.caption,
-                            ),
+                            Text('$pct%', style: AppTextStyles.label),
                           ],
                         ),
                       );

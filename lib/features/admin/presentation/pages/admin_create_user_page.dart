@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../di/injection_container.dart';
 import '../../../auth/domain/entities/user_role.dart';
@@ -38,6 +40,7 @@ class _CreateUserViewState extends State<_CreateUserView> {
 
   UserRole _role = UserRole.departmentStaff;
   String? _department;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -56,6 +59,7 @@ class _CreateUserViewState extends State<_CreateUserView> {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    FocusScope.of(context).unfocus();
     context.read<UserActionCubit>().createUser(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
@@ -65,10 +69,72 @@ class _CreateUserViewState extends State<_CreateUserView> {
     );
   }
 
+  void _showCreatedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.verified_user_outlined,
+          color: AppColors.statusGreen,
+          size: 34,
+        ),
+        title: const Text('Account created'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Share these credentials with ${_nameController.text.trim()} securely:',
+              style: AppTextStyles.bodySecondary,
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CredentialLine(
+                    label: 'Email',
+                    value: _emailController.text.trim(),
+                  ),
+                  const SizedBox(height: 8),
+                  _CredentialLine(
+                    label: 'Temporary password',
+                    value: _passwordController.text,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'They should change this password after first login.',
+              style: AppTextStyles.caption,
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(96, 44)),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.pop();
+            },
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('New User')),
       body: BlocListener<UserActionCubit, UserActionState>(
         listener: (context, state) {
@@ -81,116 +147,142 @@ class _CreateUserViewState extends State<_CreateUserView> {
             );
           }
           if (state is UserCreated) {
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (dialogContext) => AlertDialog(
-                title: const Text('Account created'),
-                content: Text(
-                  'Share these credentials with ${_nameController.text.trim()} securely:\n\n'
-                  'Email: ${_emailController.text.trim()}\n'
-                  'Temporary password: ${_passwordController.text}\n\n'
-                  'They should change this password after first login.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      context.pop();
-                    },
-                    child: const Text('Done'),
-                  ),
-                ],
-              ),
-            );
+            _showCreatedDialog();
           }
         },
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
             child: Form(
               key: _formKey,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AppTextField(
-                    controller: _nameController,
-                    label: 'Full name',
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _emailController,
-                    label: 'Email',
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      if (!v.contains('@')) return 'Enter a valid email';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _passwordController,
-                    label: 'Temporary password',
-                    obscureText: true,
-                    validator: (v) {
-                      if (v == null || v.length < 6) {
-                        return 'At least 6 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Role', style: AppTextStyles.caption),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<UserRole>(
-                    initialValue: _role,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
+                  SectionCard(
+                    title: 'Account',
+                    child: Column(
+                      children: [
+                        AppTextField(
+                          controller: _nameController,
+                          label: 'Full name',
+                          prefixIcon: Icons.person_outline_rounded,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Required'
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+                        AppTextField(
+                          controller: _emailController,
+                          label: 'Email',
+                          prefixIcon: Icons.mail_outline_rounded,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            if (!v.contains('@')) return 'Enter a valid email';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        AppTextField(
+                          controller: _passwordController,
+                          label: 'Temporary password',
+                          prefixIcon: Icons.key_outlined,
+                          obscureText: _obscurePassword,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.length < 6) {
+                              return 'At least 6 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: UserRole.departmentStaff,
-                        child: Text('Department Staff'),
-                      ),
-                      DropdownMenuItem(
-                        value: UserRole.venueCoordinator,
-                        child: Text('Venue Coordinator'),
-                      ),
-                      DropdownMenuItem(
-                        value: UserRole.admin,
-                        child: Text('Admin'),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() {
-                      _role = value!;
-                      if (_role != UserRole.departmentStaff) _department = null;
-                    }),
                   ),
-                  if (_role == UserRole.departmentStaff) ...[
-                    const SizedBox(height: 16),
-                    Text('Department', style: AppTextStyles.caption),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      initialValue: _department,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                      ),
-                      hint: const Text('Select department'),
-                      items: kDepartmentOptions
-                          .map(
-                            (d) => DropdownMenuItem(value: d, child: Text(d)),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() => _department = value),
+                  const SizedBox(height: 16),
+                  SectionCard(
+                    title: 'Role & access',
+                    child: Column(
+                      children: [
+                        DropdownButtonFormField<UserRole>(
+                          initialValue: _role,
+                          decoration: const InputDecoration(
+                            labelText: 'Role',
+                            prefixIcon: Icon(Icons.badge_outlined, size: 20),
+                          ),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          items: const [
+                            DropdownMenuItem(
+                              value: UserRole.departmentStaff,
+                              child: Text('Department Staff'),
+                            ),
+                            DropdownMenuItem(
+                              value: UserRole.venueCoordinator,
+                              child: Text('Venue Coordinator'),
+                            ),
+                            DropdownMenuItem(
+                              value: UserRole.admin,
+                              child: Text('Admin'),
+                            ),
+                          ],
+                          onChanged: (value) => setState(() {
+                            _role = value!;
+                            if (_role != UserRole.departmentStaff) {
+                              _department = null;
+                            }
+                          }),
+                        ),
+                        if (_role == UserRole.departmentStaff) ...[
+                          const SizedBox(height: 14),
+                          DropdownButtonFormField<String>(
+                            initialValue: _department,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Department',
+                              prefixIcon: Icon(
+                                Icons.apartment_rounded,
+                                size: 20,
+                              ),
+                            ),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            items: kDepartmentOptions
+                                .map(
+                                  (d) => DropdownMenuItem(
+                                    value: d,
+                                    child: Text(
+                                      d,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) =>
+                                setState(() => _department = value),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                  const SizedBox(height: 32),
+                  ),
+                  const SizedBox(height: 28),
                   BlocBuilder<UserActionCubit, UserActionState>(
                     builder: (context, state) {
                       return AppButton(
                         label: 'Create Account',
+                        icon: Icons.person_add_alt_1_rounded,
                         isLoading: state is UserActionLoading,
                         onPressed: _onSubmit,
                       );
@@ -202,6 +294,26 @@ class _CreateUserViewState extends State<_CreateUserView> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CredentialLine extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CredentialLine({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTextStyles.caption),
+        SelectableText(
+          value,
+          style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

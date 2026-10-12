@@ -3,8 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/info_row.dart';
+import '../../../../core/widgets/picker_field.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
 import '../../domain/entities/booking_entity.dart';
 import '../../domain/entities/booking_status.dart';
@@ -12,7 +17,8 @@ import '../cubit/booking_detail_cubit/booking_detail_cubit.dart';
 import '../cubit/booking_detail_cubit/booking_detail_state.dart';
 import '../cubit/booking_action_cubit/booking_action_cubit.dart';
 import '../cubit/booking_action_cubit/booking_action_state.dart';
-import '../widgets/booking_status_badge.dart';
+import '../utils/booking_status_ui_extension.dart';
+import '../widgets/booking_header_card.dart';
 
 class BookingDetailPage extends StatelessWidget {
   final String bookingId;
@@ -36,7 +42,6 @@ class _BookingDetailView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Booking Details')),
       body: BlocConsumer<BookingActionCubit, BookingActionState>(
         listener: (context, actionState) {
@@ -68,15 +73,10 @@ class _BookingDetailView extends StatelessWidget {
           return BlocBuilder<BookingDetailCubit, BookingDetailState>(
             builder: (context, state) {
               if (state is BookingDetailLoading) {
-                return const Center(child: CircularProgressIndicator());
+                return const LoadingView();
               }
               if (state is BookingDetailError) {
-                return Center(
-                  child: Text(
-                    state.message,
-                    style: AppTextStyles.bodySecondary,
-                  ),
-                );
+                return ErrorState(message: state.message);
               }
               final booking = (state as BookingDetailLoaded).booking;
               return _BookingDetailBody(
@@ -135,7 +135,6 @@ class _BookingDetailBodyState extends State<_BookingDetailBody> {
     return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
   }
 
-  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
   String _fmtTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
@@ -152,14 +151,6 @@ class _BookingDetailBodyState extends State<_BookingDetailBody> {
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: now.add(const Duration(days: 365)),
       initialDateRange: _dateRange,
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(
-            context,
-          ).colorScheme.copyWith(primary: AppColors.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _dateRange = picked);
   }
@@ -220,9 +211,15 @@ class _BookingDetailBodyState extends State<_BookingDetailBody> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.event_busy_rounded,
+          color: AppColors.error,
+          size: 32,
+        ),
         title: const Text('Cancel this booking?'),
         content: const Text(
           'This cannot be undone. The venue will become available for others.',
+          textAlign: TextAlign.center,
         ),
         actions: [
           TextButton(
@@ -234,10 +231,8 @@ class _BookingDetailBodyState extends State<_BookingDetailBody> {
               Navigator.of(dialogContext).pop();
               context.read<BookingActionCubit>().cancel(widget.booking.id);
             },
-            child: Text(
-              'Cancel booking',
-              style: TextStyle(color: AppColors.error),
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Cancel booking'),
           ),
         ],
       ),
@@ -250,32 +245,33 @@ class _BookingDetailBodyState extends State<_BookingDetailBody> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(booking.venueName, style: AppTextStyles.h1),
-                ),
-                BookingStatusBadge(status: booking.status),
-              ],
+            BookingHeaderCard(booking: booking),
+            if (booking.status == BookingStatus.rejected &&
+                booking.rejectionReason != null) ...[
+              const SizedBox(height: 12),
+              BookingNotice(
+                icon: Icons.info_outline_rounded,
+                color: booking.status.color,
+                title: 'Reason for rejection',
+                message: booking.rejectionReason!,
+              ),
+            ],
+            const SizedBox(height: 16),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: _isEditing ? _buildEditMode() : _buildViewMode(booking),
             ),
-            const SizedBox(height: 20),
-            if (!_isEditing) ..._buildViewMode(booking) else _buildEditMode(),
             if (!_isEditable) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.divider.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'This booking is ${booking.status.displayName.toLowerCase()} and can no longer be modified.',
-                  style: AppTextStyles.bodySecondary,
-                ),
+              const SizedBox(height: 16),
+              BookingNotice(
+                icon: Icons.lock_outline_rounded,
+                color: AppColors.textSecondary,
+                message:
+                    'This booking is ${booking.status.displayName.toLowerCase()} and can no longer be modified.',
               ),
             ],
           ],
@@ -284,206 +280,176 @@ class _BookingDetailBodyState extends State<_BookingDetailBody> {
     );
   }
 
-  List<Widget> _buildViewMode(BookingEntity booking) {
-    final dateLabel = _fmtDate(booking.startDate) == _fmtDate(booking.endDate)
-        ? _fmtDate(booking.startDate)
-        : '${_fmtDate(booking.startDate)} — ${_fmtDate(booking.endDate)}';
-
-    return [
-      Text('Purpose', style: AppTextStyles.caption),
-      const SizedBox(height: 4),
-      Text(booking.purpose, style: AppTextStyles.body),
-      const SizedBox(height: 16),
-      Text('Date', style: AppTextStyles.caption),
-      const SizedBox(height: 4),
-      Text(dateLabel, style: AppTextStyles.body),
-      const SizedBox(height: 16),
-      Text('Time', style: AppTextStyles.caption),
-      const SizedBox(height: 4),
-      Text(
-        booking.isFullDay
-            ? 'Full day'
-            : '${booking.startTime} - ${booking.endTime}',
-        style: AppTextStyles.body,
-      ),
-      if (_isEditable) ...[
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => setState(() {
-                  _resetFormToOriginal();
-                  _isEditing = true;
-                }),
-                child: const Text('Edit Booking'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                ),
-                onPressed: widget.isSubmitting ? null : _onCancelBooking,
-                child: const Text('Cancel Booking'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ];
-  }
-
-  Widget _buildEditMode() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AppTextField(
-            controller: _purposeController,
-            label: 'Purpose',
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Please describe the purpose';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          InkWell(
-            onTap: _pickDateRange,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.date_range_outlined,
-                    size: 20,
-                    color: AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    _dateRange == null
-                        ? 'Select date range'
-                        : '${_fmtDate(_dateRange!.start)} — ${_fmtDate(_dateRange!.end)}',
-                    style: AppTextStyles.body,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
+  Widget _buildViewMode(BookingEntity booking) {
+    return Column(
+      key: const ValueKey('view'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionCard(
+          title: 'Details',
+          child: Column(
             children: [
-              Switch(
-                value: _isFullDay,
-                activeThumbColor: AppColors.primary,
-                onChanged: (v) => setState(() => _isFullDay = v),
+              InfoRow(
+                icon: Icons.edit_calendar_outlined,
+                label: 'Purpose',
+                value: booking.purpose,
               ),
-              Text('Full day booking', style: AppTextStyles.body),
+              InfoRow(
+                icon: Icons.date_range_outlined,
+                color: AppColors.venues,
+                label: 'Date',
+                value: formatDateRange(booking.startDate, booking.endDate),
+              ),
+              InfoRow(
+                icon: Icons.schedule_rounded,
+                color: AppColors.venues,
+                label: 'Time',
+                value: booking.isFullDay
+                    ? 'Full day'
+                    : '${booking.startTime} – ${booking.endTime}',
+              ),
+              InfoRow(
+                icon: Icons.history_rounded,
+                color: AppColors.textSecondary,
+                label: 'Requested',
+                value: formatDateTime(booking.createdAt),
+                isLast: true,
+              ),
             ],
           ),
-          if (!_isFullDay) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _TimeField(
-                    label: 'Start time',
-                    formatted: _startTime != null
-                        ? _fmtTime(_startTime!)
-                        : null,
-                    onTap: () => _pickTime(isStart: true),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TimeField(
-                    label: 'End time',
-                    formatted: _endTime != null ? _fmtTime(_endTime!) : null,
-                    onTap: () => _pickTime(isStart: false),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 28),
+        ),
+        if (_isEditable) ...[
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  label: 'Edit',
+                  icon: Icons.edit_outlined,
+                  variant: AppButtonVariant.outlined,
                   onPressed: () => setState(() {
                     _resetFormToOriginal();
-                    _isEditing = false;
+                    _isEditing = true;
                   }),
-                  child: const Text('Discard'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: AppButton(
-                  label: 'Save Changes',
-                  isLoading: widget.isSubmitting,
-                  onPressed: _onSave,
+                  label: 'Cancel',
+                  icon: Icons.event_busy_outlined,
+                  variant: AppButtonVariant.danger,
+                  onPressed: widget.isSubmitting ? null : _onCancelBooking,
                 ),
               ),
             ],
           ),
         ],
-      ),
+      ],
     );
   }
-}
 
-class _TimeField extends StatelessWidget {
-  final String label;
-  final String? formatted;
-  final VoidCallback onTap;
-  const _TimeField({
-    required this.label,
-    required this.formatted,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.access_time_rounded,
-              size: 18,
-              color: AppColors.textSecondary,
+  Widget _buildEditMode() {
+    return Column(
+      key: const ValueKey('edit'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionCard(
+          title: 'Edit booking',
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                AppTextField(
+                  controller: _purposeController,
+                  label: 'Purpose',
+                  prefixIcon: Icons.edit_calendar_outlined,
+                  textCapitalization: TextCapitalization.sentences,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please describe the purpose';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                PickerField(
+                  icon: Icons.date_range_outlined,
+                  placeholder: 'Select date range',
+                  value: _dateRange == null
+                      ? null
+                      : formatDateRange(_dateRange!.start, _dateRange!.end),
+                  onTap: _pickDateRange,
+                ),
+                const SizedBox(height: 12),
+                SwitchField(
+                  label: 'Full-day booking',
+                  value: _isFullDay,
+                  onChanged: (v) => setState(() => _isFullDay = v),
+                ),
+                if (!_isFullDay) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: PickerField(
+                          icon: Icons.schedule_rounded,
+                          placeholder: 'Start',
+                          value: _startTime != null
+                              ? _fmtTime(_startTime!)
+                              : null,
+                          onTap: () => _pickTime(isStart: true),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: PickerField(
+                          icon: Icons.schedule_rounded,
+                          placeholder: 'End',
+                          value: _endTime != null ? _fmtTime(_endTime!) : null,
+                          onTap: () => _pickTime(isStart: false),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(width: 8),
+          ),
+        ),
+        if (widget.booking.status == BookingStatus.approved) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Changing the date or time sends this booking back for approval.',
+            style: AppTextStyles.caption,
+            textAlign: TextAlign.center,
+          ),
+        ],
+        const SizedBox(height: 16),
+        Row(
+          children: [
             Expanded(
-              child: Text(
-                formatted ?? label,
-                style: AppTextStyles.body,
-                overflow: TextOverflow.ellipsis,
+              child: AppButton(
+                label: 'Discard',
+                variant: AppButtonVariant.outlined,
+                onPressed: () => setState(() {
+                  _resetFormToOriginal();
+                  _isEditing = false;
+                }),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppButton(
+                label: 'Save',
+                icon: Icons.check_rounded,
+                isLoading: widget.isSubmitting,
+                onPressed: _onSave,
               ),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 }

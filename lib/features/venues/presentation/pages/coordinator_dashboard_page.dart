@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/segmented_tab_bar.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
+import '../../domain/entities/booking_entity.dart';
 import '../cubit/coordinator_approvals_cubit/coordinator_approvals_cubit.dart';
 import '../cubit/coordinator_approvals_cubit/coordinator_approvals_state.dart';
 import '../widgets/approval_booking_card.dart';
@@ -18,40 +20,52 @@ class CoordinatorDashboardPage extends StatelessWidget {
       child: DefaultTabController(
         length: 2,
         child: Scaffold(
-          backgroundColor: AppColors.background,
-          appBar: AppBar(
-            title: const Text('Approval Requests'),
-            bottom: const TabBar(
-              tabs: [
-                Tab(text: 'Pending'),
-                Tab(text: 'History'),
-              ],
-            ),
-          ),
+          appBar: AppBar(title: const Text('Approval Requests')),
           body:
               BlocBuilder<CoordinatorApprovalsCubit, CoordinatorApprovalsState>(
                 builder: (context, state) {
                   if (state is CoordinatorApprovalsLoading) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const LoadingView();
                   }
                   if (state is CoordinatorApprovalsError) {
-                    return Center(
-                      child: Text(
-                        state.message,
-                        style: AppTextStyles.bodySecondary,
-                      ),
-                    );
+                    return ErrorState(message: state.message);
                   }
                   final loaded = state as CoordinatorApprovalsLoaded;
-                  return TabBarView(
+                  return Column(
                     children: [
-                      _BookingsList(
-                        bookings: loaded.pending,
-                        emptyMessage: 'No pending requests right now.',
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                        child: SegmentedTabBar(
+                          tabs: [
+                            SegmentedTab(
+                              label: 'Pending',
+                              count: loaded.pending.length,
+                            ),
+                            SegmentedTab(
+                              label: 'History',
+                              count: loaded.history.length,
+                            ),
+                          ],
+                        ),
                       ),
-                      _BookingsList(
-                        bookings: loaded.history,
-                        emptyMessage: 'No past decisions yet.',
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            _BookingsList(
+                              bookings: loaded.pending,
+                              emptyIcon: Icons.task_alt_rounded,
+                              emptyTitle: "You're all caught up",
+                              emptyMessage: 'No pending requests right now.',
+                            ),
+                            _BookingsList(
+                              bookings: loaded.history,
+                              emptyIcon: Icons.history_rounded,
+                              emptyTitle: 'No history yet',
+                              emptyMessage:
+                                  'Requests you approve or reject appear here.',
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   );
@@ -64,25 +78,36 @@ class CoordinatorDashboardPage extends StatelessWidget {
 }
 
 class _BookingsList extends StatelessWidget {
-  final List<dynamic> bookings;
+  final List<BookingEntity> bookings;
+  final IconData emptyIcon;
+  final String emptyTitle;
   final String emptyMessage;
-  const _BookingsList({required this.bookings, required this.emptyMessage});
+  const _BookingsList({
+    required this.bookings,
+    required this.emptyIcon,
+    required this.emptyTitle,
+    required this.emptyMessage,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (bookings.isEmpty) {
-      return Center(
-        child: Text(emptyMessage, style: AppTextStyles.bodySecondary),
+      return EmptyState(
+        icon: emptyIcon,
+        color: AppColors.venues,
+        title: emptyTitle,
+        message: emptyMessage,
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
       itemCount: bookings.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final booking = bookings[index];
         return ApprovalBookingCard(
           booking: booking,
+          index: index,
           onTap: () => context.push('/approval/${booking.id}'),
         );
       },

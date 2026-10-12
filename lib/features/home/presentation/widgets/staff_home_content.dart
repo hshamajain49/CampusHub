@@ -1,18 +1,22 @@
-import 'package:campus_hub/features/home/presentation/widgets/quick_action_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/time_ago.dart';
 import '../../../../core/widgets/inline_empty_note.dart';
 import '../../../../core/widgets/recent_item_tile.dart';
 import '../../../../core/widgets/section_header.dart';
 import '../../../../core/widgets/stat_card.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
 import '../../../auth/presentation/cubit/auth_state_cubit/auth_state.dart';
 import '../../../auth/presentation/cubit/auth_state_cubit/auth_state_cubit.dart';
 import '../../../complaints/presentation/cubit/staff_complaints_cubit/staff_complaints_cubit.dart';
 import '../../../complaints/presentation/cubit/staff_complaints_cubit/staff_complaints_state.dart';
+import '../../../complaints/presentation/utils/category_ui_extension.dart';
 import '../../../complaints/presentation/utils/status_ui_extension.dart';
+import 'home_quick_actions.dart';
+import 'quick_action_card.dart';
 
 class StaffHomeContent extends StatelessWidget {
   const StaffHomeContent({super.key});
@@ -29,30 +33,23 @@ class StaffHomeContent extends StatelessWidget {
       child: BlocBuilder<StaffComplaintsCubit, StaffComplaintsState>(
         builder: (context, state) {
           if (state is StaffComplaintsLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const LoadingView();
           }
           if (state is StaffComplaintsError) {
-            return Center(child: Text(state.message));
+            return ErrorState(message: state.message);
           }
           final loaded = state as StaffComplaintsLoaded;
           final recentActive = loaded.active.toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
             children: [
-              if (department.isNotEmpty) ...[
-                Text(
-                  department,
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-              ],
               Row(
                 children: [
                   Expanded(
                     child: StatCard(
-                      label: 'Active Complaints',
+                      label: 'Active complaints',
                       value: '${loaded.active.length}',
                       icon: Icons.build_outlined,
                       color: AppColors.statusOrange,
@@ -69,76 +66,22 @@ class StaffHomeContent extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Quick Actions',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'What would you like to do?',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: QuickActionCard(
-                          icon: Icons.report_problem_outlined,
-                          title: 'Complaint',
-                          // subtitle: 'Report an issue',
-                          iconColor: Colors.redAccent,
-                          backgroundColor: const Color(0xFFFFF1F1),
-                          onTap: () => context.push('/new-complaint'),
-                        ),
-                      ),
-                      // const SizedBox(width: 12),
-                      // Expanded(
-                      //   child: QuickActionCard(
-                      //     icon: Icons.event_available_outlined,
-                      //     title: 'Book Venue',
-                      //     // subtitle: 'Reserve a space',
-                      //     iconColor: Colors.blueAccent,
-                      //     backgroundColor: const Color(0xFFF0F6FF),
-                      //     onTap: () => context.push('/venues'),
-                      //   ),
-                      // ),
-                      // const SizedBox(width: 12),
-                      Expanded(
-                        child: QuickActionCard(
-                          icon: Icons.lightbulb_outline_rounded,
-                          title: 'Suggestions',
-                          // subtitle: 'Share your idea',
-                          iconColor: Colors.amber.shade800,
-                          backgroundColor: const Color(0xFFFFF8E7),
-                          onTap: () => context.push('/suggestions'),
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 28),
+              const SectionHeader(
+                title: 'Quick actions',
+                subtitle: 'What would you like to do?',
+              ),
+              const SizedBox(height: 14),
+              QuickActionsRow(
+                actions: [
+                  HomeQuickActions.complaint(context, detailed: true),
+                  HomeQuickActions.suggestions(context, detailed: true),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               SectionHeader(
-                icon: Icons.build_outlined,
-                title: 'Needs Attention',
+                title: 'Needs attention',
+                subtitle: department.isEmpty ? null : department,
                 actionLabel: 'View all',
                 onAction: () => context.push('/staff/complaints'),
               ),
@@ -146,6 +89,7 @@ class StaffHomeContent extends StatelessWidget {
               if (recentActive.isEmpty)
                 const InlineEmptyNote(
                   message: 'No active complaints. Nice and quiet.',
+                  icon: Icons.task_alt_rounded,
                 )
               else
                 Column(
@@ -153,10 +97,10 @@ class StaffHomeContent extends StatelessWidget {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: RecentItemTile(
-                        icon: Icons.build_outlined,
-                        iconColor: AppColors.statusOrange,
+                        icon: c.category.icon,
+                        iconColor: c.category.color,
                         title: c.title,
-                        subtitle: c.studentName,
+                        subtitle: '${c.studentName} · ${timeAgo(c.createdAt)}',
                         statusLabel: c.status.displayName,
                         statusColor: c.status.color,
                         onTap: () => context.push('/staff/complaint/${c.id}'),

@@ -2,6 +2,7 @@ import 'package:campus_hub/features/admin/presentation/pages/admin_user_list_pag
 import 'package:campus_hub/features/reports/presentation/pages/reports_page.dart';
 import 'package:campus_hub/features/suggestions/presentation/cubit/suggestion_list_cubit/suggestion_list_cubit.dart';
 import 'package:campus_hub/features/suggestions/presentation/pages/suggestion_list_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../di/injection_container.dart';
@@ -92,7 +93,7 @@ class AppRouter {
       GoRoute(
         path: '/login',
         name: 'login',
-        builder: (context, state) => const LoginPage(),
+        pageBuilder: (context, state) => _fadePage(state, const LoginPage()),
       ),
       GoRoute(
         path: '/register',
@@ -102,7 +103,7 @@ class AppRouter {
       GoRoute(
         path: '/home',
         name: 'home',
-        builder: (context, state) => const HomePage(),
+        pageBuilder: (context, state) => _fadePage(state, const HomePage()),
       ),
       GoRoute(
         path: '/complaints',
@@ -229,5 +230,21 @@ class AppRouter {
         ),
       ),
     ],
+  );
+}
+
+/// Login and Home are reached through auth redirects (splash, sign-in,
+/// sign-out) rather than a user "push", so they cross-fade instead of
+/// sliding in.
+CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 450),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: child,
+        ),
   );
 }

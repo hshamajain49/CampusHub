@@ -6,10 +6,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
-import '../../../../core/widgets/app_logo.dart';
 import '../../../../di/injection_container.dart';
 import '../cubit/login_cubit/login_cubit.dart';
 import '../cubit/login_cubit/login_state.dart';
+import '../widgets/auth_scaffold.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -47,6 +47,7 @@ class _LoginViewState extends State<_LoginView> {
   void _onLoginPressed() {
     // Only call the Cubit if form validation passes.
     if (_formKey.currentState!.validate()) {
+      FocusScope.of(context).unfocus();
       context.read<LoginCubit>().login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -56,117 +57,121 @@ class _LoginViewState extends State<_LoginView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: BlocListener<LoginCubit, LoginState>(
-          listener: (context, state) {
-            if (state is LoginError) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.message),
-                  backgroundColor: AppColors.error,
+    return BlocListener<LoginCubit, LoginState>(
+      listener: (context, state) {
+        if (state is LoginError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        // LoginSuccess -> navigation happens automatically via
+        // AuthStateCubit + router redirect.
+      },
+      child: AuthScaffold(
+        title: 'Welcome back',
+        subtitle: 'Log in to continue to CampusHub',
+        child: Form(
+          key: _formKey,
+          child: AutofillGroup(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppTextField(
+                  controller: _emailController,
+                  label: 'Email',
+                  hint: 'you@college.edu',
+                  prefixIcon: Icons.mail_outline_rounded,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.email],
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Email is required';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Enter a valid email';
+                    }
+                    return null;
+                  },
                 ),
-              );
-            }
-            if (state is LoginSuccess) {
-              // Navigation on success happens automatically via
-              // AuthStateCubit + router redirect (built in next step) —
-              // no manual context.go() needed here.
-            }
-          },
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 24),
-                  const Center(child: AppLogo(size: 72, showWordmark: false)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Welcome back',
-                    style: AppTextStyles.h1,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Log in to continue to CampusHub',
-                    style: AppTextStyles.bodySecondary,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-
-                  AppTextField(
-                    controller: _emailController,
-                    label: 'Email',
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Email is required';
-                      }
-                      if (!value.contains('@')) {
-                        return 'Enter a valid email';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  AppTextField(
-                    controller: _passwordController,
-                    label: 'Password',
-                    obscureText: _obscurePassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        color: AppColors.textSecondary,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
+                const SizedBox(height: 16),
+                AppTextField(
+                  controller: _passwordController,
+                  label: 'Password',
+                  prefixIcon: Icons.lock_outline_rounded,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.password],
+                  onFieldSubmitted: (_) => _onLoginPressed(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Password is required';
-                      }
-                      return null;
-                    },
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
-                  const SizedBox(height: 28),
-
-                  BlocBuilder<LoginCubit, LoginState>(
-                    builder: (context, state) {
-                      return AppButton(
-                        label: 'Log In',
-                        isLoading: state is LoginLoading,
-                        onPressed: _onLoginPressed,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account?",
-                        style: AppTextStyles.bodySecondary,
-                      ),
-                      TextButton(
-                        onPressed: () => context.push('/register'),
-                        child: const Text('Sign up'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Password is required';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 28),
+                BlocBuilder<LoginCubit, LoginState>(
+                  builder: (context, state) {
+                    return AppButton(
+                      label: 'Log In',
+                      icon: Icons.login_rounded,
+                      isLoading: state is LoginLoading,
+                      onPressed: _onLoginPressed,
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                const _OrDivider(),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Don't have an account?",
+                      style: AppTextStyles.bodySecondary,
+                    ),
+                    TextButton(
+                      onPressed: () => context.push('/register'),
+                      child: const Text('Sign up'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text('New here?', style: AppTextStyles.caption),
+        ),
+        const Expanded(child: Divider()),
+      ],
     );
   }
 }

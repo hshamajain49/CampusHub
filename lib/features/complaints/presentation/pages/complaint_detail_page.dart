@@ -1,12 +1,17 @@
-import 'package:campus_hub/features/complaints/presentation/pages/image_viewer_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_format.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/info_row.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
+import '../../domain/entities/complaint_status.dart';
 import '../cubit/complaint_detail_cubit/complaint_detail_cubit.dart';
 import '../cubit/complaint_detail_cubit/complaint_detail_state.dart';
-import '../widgets/status_badge.dart';
+import '../utils/category_ui_extension.dart';
+import '../widgets/complaint_detail_sections.dart';
 
 class ComplaintDetailPage extends StatelessWidget {
   final String complaintId;
@@ -17,141 +22,132 @@ class ComplaintDetailPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => sl<ComplaintDetailCubit>()..load(complaintId),
       child: Scaffold(
-        backgroundColor: AppColors.background,
         appBar: AppBar(title: const Text('Complaint Details')),
         body: BlocBuilder<ComplaintDetailCubit, ComplaintDetailState>(
           builder: (context, state) {
             if (state is ComplaintDetailLoading) {
-              return const Center(child: CircularProgressIndicator());
+              return const LoadingView();
             }
             if (state is ComplaintDetailError) {
-              return Center(
-                child: Text(state.message, style: AppTextStyles.bodySecondary),
+              return ErrorState(
+                message: state.message,
+                onRetry: () =>
+                    context.read<ComplaintDetailCubit>().load(complaintId),
               );
             }
 
             final complaint = (state as ComplaintDetailLoaded).complaint;
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              children: [
+                ComplaintHeaderCard(complaint: complaint),
+                const SizedBox(height: 12),
+                _StatusNote(
+                  status: complaint.status,
+                  department: complaint.assignedDepartment,
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'Details',
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Text(complaint.title, style: AppTextStyles.h1),
+                      InfoRow(
+                        icon: complaint.category.icon,
+                        color: complaint.category.color,
+                        label: 'Category',
+                        value: complaint.category.displayName,
                       ),
-                      StatusBadge(status: complaint.status),
+                      InfoRow(
+                        icon: Icons.apartment_rounded,
+                        label: 'Assigned to',
+                        value: complaint.assignedDepartment,
+                      ),
+                      if (complaint.location != null)
+                        InfoRow(
+                          icon: Icons.location_on_outlined,
+                          color: AppColors.secondary,
+                          label: 'Location',
+                          value: complaint.location!,
+                        ),
+                      InfoRow(
+                        icon: Icons.schedule_rounded,
+                        color: AppColors.textSecondary,
+                        label: 'Submitted',
+                        value: formatDateTime(complaint.createdAt),
+                        isLast: true,
+                      ),
                     ],
                   ),
+                ),
+                if (complaint.description != null &&
+                    complaint.description!.isNotEmpty) ...[
                   const SizedBox(height: 16),
-
-                  _InfoRow(
-                    icon: Icons.category_outlined,
-                    label: complaint.category.displayName,
-                  ),
-                  _InfoRow(
-                    icon: Icons.apartment_outlined,
-                    label: complaint.assignedDepartment,
-                  ),
-                  if (complaint.location != null)
-                    _InfoRow(
-                      icon: Icons.location_on_outlined,
-                      label: complaint.location!,
+                  SectionCard(
+                    title: 'Description',
+                    child: Text(
+                      complaint.description!,
+                      style: AppTextStyles.body,
                     ),
-                  _InfoRow(
-                    icon: Icons.access_time_rounded,
-                    label: 'Submitted ${_formatFullDate(complaint.createdAt)}',
                   ),
-
-                  if (complaint.description != null) ...[
-                    const SizedBox(height: 20),
-                    Text('Description', style: AppTextStyles.h3),
-                    const SizedBox(height: 6),
-                    Text(complaint.description!, style: AppTextStyles.body),
-                  ],
-
-                  if (complaint.imageUrls.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    Text('Photos', style: AppTextStyles.h3),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 110,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: complaint.imageUrls.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        // Add import at the top:
-
-                        // Replace the itemBuilder inside the ListView.separated for photos with:
-                        itemBuilder: (context, index) {
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => ImageViewerPage(
-                                    imageUrls: complaint.imageUrls,
-                                    initialIndex: index,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                complaint.imageUrls[index],
-                                width: 110,
-                                height: 110,
-                                fit: BoxFit.cover,
-                                loadingBuilder: (context, child, progress) {
-                                  if (progress == null) return child;
-                                  return const SizedBox(
-                                    width: 110,
-                                    height: 110,
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+                if (complaint.imageUrls.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  ComplaintPhotos(imageUrls: complaint.imageUrls),
+                ],
+              ],
             );
           },
         ),
       ),
     );
   }
-
-  String _formatFullDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _InfoRow({required this.icon, required this.label});
+/// A one-line, plain-language explanation of where the complaint stands.
+class _StatusNote extends StatelessWidget {
+  final ComplaintStatus status;
+  final String department;
+  const _StatusNote({required this.status, required this.department});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+    final (icon, color, text) = switch (status) {
+      ComplaintStatus.pendingReview || ComplaintStatus.unassigned => (
+        Icons.hourglass_top_rounded,
+        AppColors.statusYellow,
+        'Waiting for the $department to pick this up.',
+      ),
+      ComplaintStatus.inProgress => (
+        Icons.construction_rounded,
+        AppColors.statusOrange,
+        'The $department is working on it.',
+      ),
+      ComplaintStatus.resolved => (
+        Icons.celebration_outlined,
+        AppColors.statusGreen,
+        'This issue has been resolved. Thanks for reporting it!',
+      ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textSecondary),
+          Icon(icon, size: 20, color: AppColors.onTint(color)),
           const SizedBox(width: 10),
-          Expanded(child: Text(label, style: AppTextStyles.body)),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.onTint(color),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );

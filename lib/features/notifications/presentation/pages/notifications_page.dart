@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/fade_slide_in.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
 import '../cubit/notifications_cubit/notifications_cubit.dart';
 import '../cubit/notifications_cubit/notifications_state.dart';
@@ -16,17 +17,20 @@ class NotificationsPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => sl<NotificationsCubit>(),
       child: Scaffold(
-        backgroundColor: AppColors.background,
         appBar: AppBar(
           title: const Text('Notifications'),
           actions: [
             BlocBuilder<NotificationsCubit, NotificationsState>(
               builder: (context, state) {
                 if (state is NotificationsLoaded && state.unreadCount > 0) {
-                  return TextButton(
-                    onPressed: () =>
-                        context.read<NotificationsCubit>().markAllAsRead(),
-                    child: const Text('Mark all read'),
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          context.read<NotificationsCubit>().markAllAsRead(),
+                      icon: const Icon(Icons.done_all_rounded, size: 18),
+                      label: const Text('Mark all read'),
+                    ),
                   );
                 }
                 return const SizedBox.shrink();
@@ -37,49 +41,49 @@ class NotificationsPage extends StatelessWidget {
         body: BlocBuilder<NotificationsCubit, NotificationsState>(
           builder: (context, state) {
             if (state is NotificationsLoading) {
-              return const Center(child: CircularProgressIndicator());
+              return const LoadingView();
             }
             if (state is NotificationsError) {
-              return Center(
-                child: Text(state.message, style: AppTextStyles.bodySecondary),
-              );
+              return ErrorState(message: state.message);
             }
-            final notifications = (state as NotificationsLoaded).notifications;
+            final loaded = state as NotificationsLoaded;
+            final notifications = loaded.notifications;
 
             if (notifications.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.notifications_none_rounded,
-                        size: 56,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text('No notifications yet', style: AppTextStyles.h2),
-                    ],
-                  ),
-                ),
+              return const EmptyState(
+                icon: Icons.notifications_none_rounded,
+                title: 'No notifications yet',
+                message:
+                    "Updates on your complaints and bookings will appear here.",
               );
             }
 
             return ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: notifications.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+              itemCount: notifications.length + 1,
+              separatorBuilder: (_, index) =>
+                  SizedBox(height: index == 0 ? 14 : 10),
               itemBuilder: (context, index) {
-                final n = notifications[index];
-                return NotificationTile(
-                  notification: n,
-                  onTap: () {
-                    if (!n.isRead) {
-                      context.read<NotificationsCubit>().markAsRead(n.id);
-                    }
-                    if (n.actionRoute != null) context.push(n.actionRoute!);
-                  },
+                if (index == 0) {
+                  return Text(
+                    loaded.unreadCount == 0
+                        ? "You're all caught up"
+                        : '${loaded.unreadCount} unread',
+                    style: AppTextStyles.bodySecondary,
+                  );
+                }
+                final n = notifications[index - 1];
+                return FadeSlideIn(
+                  index: index - 1,
+                  child: NotificationTile(
+                    notification: n,
+                    onTap: () {
+                      if (!n.isRead) {
+                        context.read<NotificationsCubit>().markAsRead(n.id);
+                      }
+                      if (n.actionRoute != null) context.push(n.actionRoute!);
+                    },
+                  ),
                 );
               },
             );

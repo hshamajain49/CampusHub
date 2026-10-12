@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/icon_badge.dart';
+import '../../../../core/widgets/picker_field.dart';
+import '../../../../core/widgets/state_views.dart';
+import '../../../../core/widgets/success_dialog.dart';
 import '../../../../di/injection_container.dart';
 import '../../domain/entities/venue_entity.dart';
 import '../cubit/venue_detail_cubit/venue_detail_cubit.dart';
@@ -12,6 +19,7 @@ import '../cubit/venue_detail_cubit/venue_detail_state.dart';
 import '../cubit/create_booking_cubit/create_booking_cubit.dart';
 import '../cubit/create_booking_cubit/create_booking_state.dart';
 import '../widgets/amenity_chip.dart';
+import '../widgets/venue_banner.dart';
 
 class VenueDetailPage extends StatelessWidget {
   final String venueId;
@@ -34,23 +42,18 @@ class _VenueDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Venue Details')),
-      body: BlocBuilder<VenueDetailCubit, VenueDetailState>(
-        builder: (context, state) {
-          if (state is VenueDetailLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is VenueDetailError) {
-            return Center(
-              child: Text(state.message, style: AppTextStyles.bodySecondary),
-            );
-          }
-          final venue = (state as VenueDetailLoaded).venue;
-          return _VenueDetailBody(venue: venue);
-        },
-      ),
+    return BlocBuilder<VenueDetailCubit, VenueDetailState>(
+      builder: (context, state) {
+        if (state is VenueDetailLoaded) {
+          return Scaffold(body: _VenueDetailBody(venue: state.venue));
+        }
+        return Scaffold(
+          appBar: AppBar(title: const Text('Venue Details')),
+          body: state is VenueDetailError
+              ? ErrorState(message: state.message)
+              : const LoadingView(),
+        );
+      },
     );
   }
 }
@@ -78,8 +81,6 @@ class _VenueDetailBodyState extends State<_VenueDetailBody> {
     super.dispose();
   }
 
-  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
-
   String _fmtTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
@@ -90,14 +91,6 @@ class _VenueDetailBodyState extends State<_VenueDetailBody> {
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: now.add(const Duration(days: 365)),
       initialDateRange: _dateRange,
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(
-            context,
-          ).colorScheme.copyWith(primary: AppColors.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _dateRange = picked);
   }
@@ -142,10 +135,11 @@ class _VenueDetailBodyState extends State<_VenueDetailBody> {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    FocusScope.of(context).unfocus();
     context.read<CreateBookingCubit>().submit(
       venueId: widget.venue.id,
       venueName: widget.venue.name,
-      coordinatorId: widget.venue.coordinatorId, // <-- add this line
+      coordinatorId: widget.venue.coordinatorId,
       purpose: _purposeController.text.trim(),
       startDate: _dateRange!.start,
       endDate: _dateRange!.end,
@@ -159,7 +153,9 @@ class _VenueDetailBodyState extends State<_VenueDetailBody> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => _BookingSuccessDialog(
+      builder: (dialogContext) => SuccessDialog(
+        title: 'Booking requested!',
+        message: "You'll be notified once it's approved.",
         onDone: () {
           Navigator.of(dialogContext).pop();
           context.pop();
@@ -186,286 +182,245 @@ class _VenueDetailBodyState extends State<_VenueDetailBody> {
           _showSuccessAndPop();
         }
       },
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 140,
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 210,
+            backgroundColor: VenueBanner.paletteFor(venue.id).first,
+            foregroundColor: Colors.white,
+            systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
+              statusBarColor: Colors.transparent,
+            ),
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsetsDirectional.only(
+                start: 56,
+                end: 20,
+                bottom: 16,
+              ),
+              title: Text(
+                venue.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.h3.copyWith(color: Colors.white),
+              ),
+              background: VenueBanner(
+                seed: venue.id,
+                imageUrl: venue.imageUrl,
+                height: 260,
+                iconSize: 64,
+                child: const DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.meeting_room_outlined,
-                    color: AppColors.primary,
-                    size: 48,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x33000000),
+                        Color(0x00000000),
+                        Color(0x66000000),
+                      ],
+                      stops: [0, 0.4, 1],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(venue.name, style: AppTextStyles.h1),
-                const SizedBox(height: 6),
-                Row(
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 15,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(venue.building, style: AppTextStyles.bodySecondary),
-                    const SizedBox(width: 14),
-                    const Icon(
-                      Icons.people_outline_rounded,
-                      size: 15,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Capacity ${venue.capacity}',
-                      style: AppTextStyles.bodySecondary,
-                    ),
-                  ],
-                ),
-                if (venue.description.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(venue.description, style: AppTextStyles.body),
-                ],
-                if (venue.amenities.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: venue.amenities
-                        .map((a) => AmenityChip(label: a))
-                        .toList(),
-                  ),
-                ],
-                const SizedBox(height: 28),
-                const Divider(),
-                const SizedBox(height: 20),
-                Text('Book this venue', style: AppTextStyles.h3),
-                const SizedBox(height: 16),
-                AppTextField(
-                  controller: _purposeController,
-                  label: 'Purpose',
-                  hint: 'e.g. Department seminar',
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please describe the purpose';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: _pickDateRange,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Row(
+                    Row(
                       children: [
-                        const Icon(
-                          Icons.date_range_outlined,
-                          size: 20,
-                          color: AppColors.textSecondary,
+                        Expanded(
+                          child: _FactTile(
+                            icon: Icons.location_on_outlined,
+                            label: 'Building',
+                            value: venue.building,
+                          ),
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          _dateRange == null
-                              ? 'Select date range'
-                              : '${_fmtDate(_dateRange!.start)} — ${_fmtDate(_dateRange!.end)}',
-                          style: AppTextStyles.body,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _FactTile(
+                            icon: Icons.people_alt_outlined,
+                            label: 'Capacity',
+                            value: '${venue.capacity} people',
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Switch(
-                      value: _isFullDay,
-                      activeThumbColor: AppColors.primary,
-                      onChanged: (v) => setState(() => _isFullDay = v),
-                    ),
-                    Text('Full day booking', style: AppTextStyles.body),
-                  ],
-                ),
-                if (!_isFullDay) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _TimePickerField(
-                          label: 'Start time',
-                          time: _startTime,
-                          formatted: _startTime != null
-                              ? _fmtTime(_startTime!)
-                              : null,
-                          onTap: () => _pickTime(isStart: true),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _TimePickerField(
-                          label: 'End time',
-                          time: _endTime,
-                          formatted: _endTime != null
-                              ? _fmtTime(_endTime!)
-                              : null,
-                          onTap: () => _pickTime(isStart: false),
+                    if (venue.description.isNotEmpty ||
+                        venue.amenities.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      SectionCard(
+                        title: 'About this space',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (venue.description.isNotEmpty)
+                              Text(
+                                venue.description,
+                                style: AppTextStyles.body,
+                              ),
+                            if (venue.description.isNotEmpty &&
+                                venue.amenities.isNotEmpty)
+                              const SizedBox(height: 14),
+                            if (venue.amenities.isNotEmpty)
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: venue.amenities
+                                    .map((a) => AmenityChip(label: a))
+                                    .toList(),
+                              ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
-                ],
-                const SizedBox(height: 32),
-                BlocBuilder<CreateBookingCubit, CreateBookingState>(
-                  builder: (context, state) {
-                    return AppButton(
-                      label: 'Request Booking',
-                      isLoading: state is CreateBookingLoading,
-                      onPressed: _onSubmit,
-                    );
-                  },
+                    const SizedBox(height: 16),
+                    SectionCard(
+                      title: 'Request a booking',
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            AppTextField(
+                              controller: _purposeController,
+                              label: 'Purpose',
+                              hint: 'e.g. Department seminar',
+                              prefixIcon: Icons.edit_calendar_outlined,
+                              textCapitalization: TextCapitalization.sentences,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please describe the purpose';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            PickerField(
+                              icon: Icons.date_range_outlined,
+                              placeholder: 'Select date range',
+                              value: _dateRange == null
+                                  ? null
+                                  : formatDateRange(
+                                      _dateRange!.start,
+                                      _dateRange!.end,
+                                    ),
+                              onTap: _pickDateRange,
+                            ),
+                            const SizedBox(height: 12),
+                            SwitchField(
+                              label: 'Full-day booking',
+                              subtitle: 'Turn off to pick specific hours',
+                              value: _isFullDay,
+                              onChanged: (v) => setState(() => _isFullDay = v),
+                            ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOut,
+                              child: _isFullDay
+                                  ? const SizedBox(width: double.infinity)
+                                  : Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: PickerField(
+                                              icon: Icons.schedule_rounded,
+                                              placeholder: 'Start',
+                                              value: _startTime == null
+                                                  ? null
+                                                  : _fmtTime(_startTime!),
+                                              onTap: () =>
+                                                  _pickTime(isStart: true),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: PickerField(
+                                              icon: Icons.schedule_rounded,
+                                              placeholder: 'End',
+                                              value: _endTime == null
+                                                  ? null
+                                                  : _fmtTime(_endTime!),
+                                              onTap: () =>
+                                                  _pickTime(isStart: false),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    BlocBuilder<CreateBookingCubit, CreateBookingState>(
+                      builder: (context, state) {
+                        return AppButton(
+                          label: 'Request Booking',
+                          icon: Icons.event_available_rounded,
+                          isLoading: state is CreateBookingLoading,
+                          onPressed: _onSubmit,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'The venue coordinator will review your request.',
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.caption,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _TimePickerField extends StatelessWidget {
+class _FactTile extends StatelessWidget {
+  final IconData icon;
   final String label;
-  final TimeOfDay? time;
-  final String? formatted;
-  final VoidCallback onTap;
-
-  const _TimePickerField({
+  final String value;
+  const _FactTile({
+    required this.icon,
     required this.label,
-    required this.time,
-    required this.formatted,
-    required this.onTap,
+    required this.value,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.access_time_rounded,
-              size: 18,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                formatted ?? label,
-                style: AppTextStyles.body,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BookingSuccessDialog extends StatefulWidget {
-  final VoidCallback onDone;
-  const _BookingSuccessDialog({required this.onDone});
-
-  @override
-  State<_BookingSuccessDialog> createState() => _BookingSuccessDialogState();
-}
-
-class _BookingSuccessDialogState extends State<_BookingSuccessDialog>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _scale = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
-    _controller.forward();
-    Future.delayed(const Duration(milliseconds: 1400), widget.onDone);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ScaleTransition(
-              scale: _scale,
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: const BoxDecoration(
-                  color: AppColors.statusGreen,
-                  shape: BoxShape.circle,
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          IconBadge(icon: icon, color: AppColors.venues, size: 36),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: AppTextStyles.caption),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.label,
                 ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  color: Colors.white,
-                  size: 36,
-                ),
-              ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text('Booking Requested!', style: AppTextStyles.h3),
-            const SizedBox(height: 4),
-            Text(
-              "You'll be notified once it's approved.",
-              style: AppTextStyles.bodySecondary,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

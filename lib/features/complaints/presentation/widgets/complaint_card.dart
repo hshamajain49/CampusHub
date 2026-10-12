@@ -2,137 +2,118 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/time_ago.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/fade_slide_in.dart';
+import '../../../../core/widgets/icon_badge.dart';
 import '../../domain/entities/complaint_entity.dart';
+import '../utils/category_ui_extension.dart';
 import 'status_badge.dart';
 
 class ComplaintCard extends StatelessWidget {
   final ComplaintEntity complaint;
   final int index;
 
+  /// Defaults to opening the student complaint detail page.
+  final VoidCallback? onTap;
+
+  /// Shows who reported the complaint (staff view).
+  final bool showReporter;
+
   const ComplaintCard({
     super.key,
     required this.complaint,
     required this.index,
+    this.onTap,
+    this.showReporter = false,
   });
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${date.day}/${date.month}/${date.year}';
-  }
 
   @override
   Widget build(BuildContext context) {
-    return _StaggeredEntry(
+    final category = complaint.category;
+    return FadeSlideIn(
       index: index,
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => context.push('/complaint/${complaint.id}'),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+      child: AppCard(
+        padding: const EdgeInsets.all(14),
+        onTap: onTap ?? () => context.push('/complaint/${complaint.id}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+                IconBadge(icon: category.icon, color: category.color, size: 44),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         complaint.title,
-                        style: AppTextStyles.h3,
+                        style: AppTextStyles.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        showReporter
+                            ? '${complaint.studentName} · ${category.displayName}'
+                            : category.displayName,
+                        style: AppTextStyles.caption,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    StatusBadge(status: complaint.status),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  complaint.category.displayName,
-                  style: AppTextStyles.bodySecondary,
-                ),
-                if (complaint.location != null) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(complaint.location!, style: AppTextStyles.caption),
                     ],
                   ),
-                ],
-                const SizedBox(height: 10),
-                Text(
-                  _formatDate(complaint.createdAt),
-                  style: AppTextStyles.caption,
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _Meta(
+                    icon: complaint.location != null
+                        ? Icons.location_on_outlined
+                        : Icons.schedule_rounded,
+                    text: complaint.location != null
+                        ? '${complaint.location!} · ${timeAgo(complaint.createdAt)}'
+                        : timeAgo(complaint.createdAt),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StatusBadge(status: complaint.status),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Wraps a list item with a fade + slide-up entry animation, delayed
-/// slightly per index — creates the "staggered" cascading effect.
-class _StaggeredEntry extends StatefulWidget {
-  final int index;
-  final Widget child;
-  const _StaggeredEntry({required this.index, required this.child});
-
-  @override
-  State<_StaggeredEntry> createState() => _StaggeredEntryState();
-}
-
-class _StaggeredEntryState extends State<_StaggeredEntry>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-
-    // Cap the delay so long lists don't feel sluggish to appear.
-    final delay = Duration(milliseconds: 40 * widget.index.clamp(0, 8));
-    Future.delayed(delay, () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+class _Meta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _Meta({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(position: _slide, child: widget.child),
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: AppColors.textTertiary),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTextStyles.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

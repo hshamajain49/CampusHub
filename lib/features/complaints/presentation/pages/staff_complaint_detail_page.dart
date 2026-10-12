@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/bottom_action_bar.dart';
+import '../../../../core/widgets/info_row.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
 import '../../domain/entities/complaint_entity.dart';
 import '../../domain/entities/complaint_status.dart';
@@ -10,7 +15,8 @@ import '../cubit/complaint_detail_cubit/complaint_detail_cubit.dart';
 import '../cubit/complaint_detail_cubit/complaint_detail_state.dart';
 import '../cubit/complaint_status_action_cubit/complaint_status_action_cubit.dart';
 import '../cubit/complaint_status_action_cubit/complaint_status_action_state.dart';
-import '../widgets/status_badge.dart';
+import '../utils/category_ui_extension.dart';
+import '../widgets/complaint_detail_sections.dart';
 
 class StaffComplaintDetailPage extends StatelessWidget {
   final String complaintId;
@@ -36,7 +42,6 @@ class _StaffComplaintDetailView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Complaint')),
       body:
           BlocConsumer<ComplaintStatusActionCubit, ComplaintStatusActionState>(
@@ -66,15 +71,10 @@ class _StaffComplaintDetailView extends StatelessWidget {
               return BlocBuilder<ComplaintDetailCubit, ComplaintDetailState>(
                 builder: (context, state) {
                   if (state is ComplaintDetailLoading) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const LoadingView();
                   }
                   if (state is ComplaintDetailError) {
-                    return Center(
-                      child: Text(
-                        state.message,
-                        style: AppTextStyles.bodySecondary,
-                      ),
-                    );
+                    return ErrorState(message: state.message);
                   }
                   final complaint = (state as ComplaintDetailLoaded).complaint;
                   return _DetailBody(
@@ -94,72 +94,68 @@ class _DetailBody extends StatelessWidget {
   final bool isSubmitting;
   const _DetailBody({required this.complaint, required this.isSubmitting});
 
-  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
-
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(child: Text(complaint.title, style: AppTextStyles.h1)),
-                StatusBadge(status: complaint.status),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text('Reported by', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(complaint.studentName, style: AppTextStyles.body),
-            const SizedBox(height: 16),
-            Text('Category', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(complaint.category.displayName, style: AppTextStyles.body),
-            if (complaint.location != null) ...[
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            children: [
+              ComplaintHeaderCard(complaint: complaint),
               const SizedBox(height: 16),
-              Text('Location', style: AppTextStyles.caption),
-              const SizedBox(height: 4),
-              Text(complaint.location!, style: AppTextStyles.body),
-            ],
-            if (complaint.description != null &&
-                complaint.description!.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Description', style: AppTextStyles.caption),
-              const SizedBox(height: 4),
-              Text(complaint.description!, style: AppTextStyles.body),
-            ],
-            const SizedBox(height: 16),
-            Text('Reported', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(_fmtDate(complaint.createdAt), style: AppTextStyles.body),
-            if (complaint.imageUrls.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 90,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: complaint.imageUrls.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) => ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      complaint.imageUrls[index],
-                      width: 90,
-                      height: 90,
-                      fit: BoxFit.cover,
+              SectionCard(
+                title: 'Details',
+                child: Column(
+                  children: [
+                    InfoRow(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Reported by',
+                      value: complaint.studentName,
                     ),
-                  ),
+                    InfoRow(
+                      icon: complaint.category.icon,
+                      color: complaint.category.color,
+                      label: 'Category',
+                      value: complaint.category.displayName,
+                    ),
+                    if (complaint.location != null)
+                      InfoRow(
+                        icon: Icons.location_on_outlined,
+                        color: AppColors.secondary,
+                        label: 'Location',
+                        value: complaint.location!,
+                      ),
+                    InfoRow(
+                      icon: Icons.schedule_rounded,
+                      color: AppColors.textSecondary,
+                      label: 'Reported',
+                      value: formatDateTime(complaint.createdAt),
+                      isLast: true,
+                    ),
+                  ],
                 ),
               ),
+              if (complaint.description != null &&
+                  complaint.description!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'Description',
+                  child: Text(
+                    complaint.description!,
+                    style: AppTextStyles.body,
+                  ),
+                ),
+              ],
+              if (complaint.imageUrls.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                ComplaintPhotos(imageUrls: complaint.imageUrls),
+              ],
             ],
-            const SizedBox(height: 32),
-            _buildActionArea(context),
-          ],
+          ),
         ),
-      ),
+        BottomActionBar(child: _buildActionArea(context)),
+      ],
     );
   }
 
@@ -169,6 +165,7 @@ class _DetailBody extends StatelessWidget {
       case ComplaintStatus.unassigned:
         return AppButton(
           label: 'Start Progress',
+          icon: Icons.play_arrow_rounded,
           isLoading: isSubmitting,
           onPressed: () => context
               .read<ComplaintStatusActionCubit>()
@@ -177,20 +174,21 @@ class _DetailBody extends StatelessWidget {
       case ComplaintStatus.inProgress:
         return AppButton(
           label: 'Mark Resolved',
+          icon: Icons.check_circle_outline_rounded,
           isLoading: isSubmitting,
           onPressed: () => context
               .read<ComplaintStatusActionCubit>()
               .updateStatus(complaint.id, ComplaintStatus.resolved),
         );
       case ComplaintStatus.resolved:
-        return OutlinedButton(
-          onPressed: isSubmitting
-              ? null
-              : () => context.read<ComplaintStatusActionCubit>().updateStatus(
-                  complaint.id,
-                  ComplaintStatus.inProgress,
-                ),
-          child: const Text('Reopen'),
+        return AppButton(
+          label: 'Reopen',
+          icon: Icons.replay_rounded,
+          variant: AppButtonVariant.outlined,
+          isLoading: isSubmitting,
+          onPressed: () => context
+              .read<ComplaintStatusActionCubit>()
+              .updateStatus(complaint.id, ComplaintStatus.inProgress),
         );
     }
   }

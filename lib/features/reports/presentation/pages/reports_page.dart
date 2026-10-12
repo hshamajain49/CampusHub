@@ -2,9 +2,14 @@ import 'package:campus_hub/core/widgets/stat_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_format.dart';
+import '../../../../core/widgets/section_header.dart';
+import '../../../../core/widgets/state_views.dart';
 import '../../../../di/injection_container.dart';
-import '../../../auth/domain/entities/user_role.dart';
+import '../../../auth/presentation/utils/user_role_ui_extension.dart';
+import '../../../complaints/presentation/utils/category_ui_extension.dart';
 import '../../../complaints/presentation/utils/status_ui_extension.dart';
 import '../../../venues/presentation/utils/booking_status_ui_extension.dart';
 import '../cubit/reports_cubit.dart';
@@ -32,47 +37,26 @@ class _ReportsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Reports & Analytics'),
         actions: [
           IconButton(
+            tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () => context.read<ReportsCubit>().load(),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: BlocBuilder<ReportsCubit, ReportsState>(
         builder: (context, state) {
           if (state is ReportsLoading || state is ReportsInitial) {
-            return const Center(child: CircularProgressIndicator());
+            return const LoadingView();
           }
           if (state is ReportsError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline_rounded,
-                      color: AppColors.error,
-                      size: 40,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      state.message,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.body,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => context.read<ReportsCubit>().load(),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
+            return ErrorState(
+              message: state.message,
+              onRetry: () => context.read<ReportsCubit>().load(),
             );
           }
 
@@ -80,10 +64,10 @@ class _ReportsView extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () => context.read<ReportsCubit>().load(),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
               children: [
                 _GeneratedAtPill(time: summary.generatedAt),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 // --- Overview: 2x2 grid, height-safe regardless of label length ---
                 GridView.count(
@@ -95,40 +79,40 @@ class _ReportsView extends StatelessWidget {
                   childAspectRatio: 1.1,
                   children: [
                     StatCard(
-                      label: 'Total Users',
+                      label: 'Total users',
                       value: '${summary.totalUsers}',
                       icon: Icons.people_outline_rounded,
                       color: AppColors.primary,
                     ),
                     StatCard(
-                      label: 'Total Complaints',
+                      label: 'Total complaints',
                       value: '${summary.totalComplaints}',
-                      icon: Icons.report_problem_outlined,
-                      color: AppColors.statusOrange,
+                      icon: Icons.report_gmailerrorred_rounded,
+                      color: AppColors.complaints,
                     ),
                     StatCard(
-                      label: 'Total Bookings',
+                      label: 'Total bookings',
                       value: '${summary.totalBookings}',
                       icon: Icons.meeting_room_outlined,
-                      color: AppColors.secondary,
+                      color: AppColors.venues,
                     ),
                     StatCard(
-                      label: 'Booking Approval Rate',
+                      label: 'Booking approval rate',
                       value: '${(summary.bookingApprovalRate * 100).round()}%',
-                      icon: Icons.check_circle_outline_rounded,
+                      icon: Icons.verified_outlined,
                       color: AppColors.statusGreen,
                     ),
                   ],
                 ),
+                const SizedBox(height: 28),
 
-                // const SizedBox(height: 10),
-                const _SectionHeader(
-                  icon: Icons.report_problem_outlined,
+                const SectionHeader(
+                  icon: Icons.report_gmailerrorred_rounded,
                   title: 'Complaints',
                 ),
                 const SizedBox(height: 12),
                 DonutChartCard(
-                  title: 'By Status',
+                  title: 'By status',
                   data: summary.complaintsByStatus.entries
                       .map(
                         (e) => ChartDatum(
@@ -139,48 +123,48 @@ class _ReportsView extends StatelessWidget {
                       )
                       .toList(),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 HorizontalBarListCard(
-                  title: 'By Category',
+                  title: 'By category',
                   maxItems: 7,
                   data: summary.complaintsByCategory.entries
                       .map(
                         (e) => ChartDatum(
                           label: e.key.displayName,
                           value: e.value,
-                          color: AppColors.primary,
+                          color: e.key.color,
                         ),
                       )
                       .toList(),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 HorizontalBarListCard(
-                  title: 'By Department',
+                  title: 'By department',
                   maxItems: 7,
                   data: summary.complaintsByDepartment.entries
                       .map(
                         (e) => ChartDatum(
                           label: e.key,
                           value: e.value,
-                          color: AppColors.secondary,
+                          color: AppColors.primary,
                         ),
                       )
                       .toList(),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 TrendChartCard(
-                  title: 'Last 30 Days',
+                  title: 'Last 30 days',
                   data: summary.complaintsTrend30d,
                 ),
                 const SizedBox(height: 28),
 
-                const _SectionHeader(
+                const SectionHeader(
                   icon: Icons.meeting_room_outlined,
-                  title: 'Venue Bookings',
+                  title: 'Venue bookings',
                 ),
                 const SizedBox(height: 12),
                 DonutChartCard(
-                  title: 'By Status',
+                  title: 'By status',
                   data: summary.bookingsByStatus.entries
                       .map(
                         (e) => ChartDatum(
@@ -191,35 +175,35 @@ class _ReportsView extends StatelessWidget {
                       )
                       .toList(),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 HorizontalBarListCard(
-                  title: 'Most-Booked Venues',
+                  title: 'Most-booked venues',
                   maxItems: 5,
                   data: summary.bookingsByVenue.entries
                       .map(
                         (e) => ChartDatum(
                           label: e.key,
                           value: e.value,
-                          color: AppColors.primary,
+                          color: AppColors.venues,
                         ),
                       )
                       .toList(),
                 ),
                 const SizedBox(height: 28),
 
-                const _SectionHeader(
+                const SectionHeader(
                   icon: Icons.people_outline_rounded,
                   title: 'Users',
                 ),
                 const SizedBox(height: 12),
                 DonutChartCard(
-                  title: 'By Role',
+                  title: 'By role',
                   data: summary.usersByRole.entries
                       .map(
                         (e) => ChartDatum(
-                          label: _roleLabel(e.key),
+                          label: e.key.displayName,
                           value: e.value,
-                          color: _roleColor(e.key),
+                          color: e.key.color,
                         ),
                       )
                       .toList(),
@@ -231,49 +215,6 @@ class _ReportsView extends StatelessWidget {
       ),
     );
   }
-
-  String _roleLabel(UserRole role) {
-    switch (role) {
-      case UserRole.student:
-        return 'Student';
-      case UserRole.departmentStaff:
-        return 'Department Staff';
-      case UserRole.venueCoordinator:
-        return 'Venue Coordinator';
-      case UserRole.admin:
-        return 'Admin';
-    }
-  }
-
-  Color _roleColor(UserRole role) {
-    switch (role) {
-      case UserRole.student:
-        return AppColors.primary;
-      case UserRole.departmentStaff:
-        return AppColors.statusOrange;
-      case UserRole.venueCoordinator:
-        return AppColors.secondary;
-      case UserRole.admin:
-        return AppColors.statusGreen;
-    }
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  const _SectionHeader({required this.icon, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.textSecondary),
-        const SizedBox(width: 8),
-        Text(title, style: AppTextStyles.h2),
-      ],
-    );
-  }
 }
 
 class _GeneratedAtPill extends StatelessWidget {
@@ -282,17 +223,13 @@ class _GeneratedAtPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label =
-        'Generated ${time.hour.toString().padLeft(2, '0')}:'
-        '${time.minute.toString().padLeft(2, '0')} · '
-        '${time.day}/${time.month}/${time.year}';
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
           border: Border.all(color: AppColors.divider),
         ),
         child: Row(
@@ -300,11 +237,14 @@ class _GeneratedAtPill extends StatelessWidget {
           children: [
             const Icon(
               Icons.update_rounded,
-              size: 13,
+              size: 14,
               color: AppColors.textSecondary,
             ),
             const SizedBox(width: 6),
-            Text(label, style: AppTextStyles.caption),
+            Text(
+              'Generated ${formatDateTime(time)}',
+              style: AppTextStyles.caption,
+            ),
           ],
         ),
       ),

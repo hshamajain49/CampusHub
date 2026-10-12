@@ -1,11 +1,11 @@
 {
-    "name": "campus_hub",
-    "short_name": "campus_hub",
+    "name": "CampusHub",
+    "short_name": "CampusHub",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B1633",
+    "theme_color": "#1E3A8A",
+    "description": "Complaints, venue bookings and suggestions for your campus.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

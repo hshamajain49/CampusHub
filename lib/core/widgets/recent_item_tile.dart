@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'app_card.dart';
+import 'icon_badge.dart';
+import 'status_pill.dart';
 
 /// Compact row for "recent activity" lists on dashboards — an icon, a
-/// title/subtitle pair, a status chip, and a chevron. Used across all four
-/// role home screens so recent complaints/bookings look consistent.
+/// title/subtitle pair and a status pill. Used across all four role home
+/// screens so recent complaints/bookings look consistent.
 class RecentItemTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -28,19 +31,11 @@ class RecentItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(12),
       onTap: onTap,
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 17, color: iconColor),
-          ),
+          IconBadge(icon: icon, color: iconColor, size: 42),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -50,9 +45,7 @@ class RecentItemTile extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppTextStyles.title.copyWith(fontSize: 14),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -61,23 +54,15 @@ class RecentItemTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption,
                 ),
+                const SizedBox(height: 8),
+                StatusPill(label: statusLabel, color: statusColor),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              statusLabel,
-              style: AppTextStyles.caption.copyWith(
-                color: statusColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textTertiary,
           ),
         ],
       ),

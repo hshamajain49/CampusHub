@@ -1,5 +1,5 @@
 name: campus_hub
-description: "A new Flutter project."
+description: "CampusHub — complaints, venue bookings and suggestions for your campus."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -57,6 +57,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -69,10 +71,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # Only the in-app logo is bundled; the other files in assets/branding are
+  # sources for the launcher icons / native splash generated below.
+  assets:
+    - assets/branding/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -99,3 +101,42 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# ---------------------------------------------------------------------------
+# Branding. Regenerate after changing the logo (tool/generate_brand_assets.py):
+#   dart run flutter_launcher_icons
+#   dart run flutter_native_splash:create
+# ---------------------------------------------------------------------------
+flutter_launcher_icons:
+  image_path: "assets/branding/icon_ios.png"
+  android: true
+  image_path_android: "assets/branding/icon_android_legacy.png"
+  adaptive_icon_background: "assets/branding/icon_background.png"
+  adaptive_icon_foreground: "assets/branding/icon_foreground.png"
+  adaptive_icon_monochrome: "assets/branding/icon_monochrome.png"
+  adaptive_icon_foreground_inset: 0
+  min_sdk_android: 21
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/branding/icon_ios.png"
+    background_color: "#0B1633"
+    theme_color: "#1E3A8A"
+  windows:
+    generate: true
+    image_path: "assets/branding/icon_android_legacy.png"
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: "assets/branding/icon_android_legacy.png"
+
+# Matches the first frame of SplashPage (AppColors.splashBackground and a
+# 112dp logo) so the native -> Flutter hand-off is seamless.
+flutter_native_splash:
+  color: "#0B1633"
+  image: "assets/branding/splash_logo.png"
+  android_12:
+    color: "#0B1633"
+    image: "assets/branding/splash_android12.png"
+  web: false

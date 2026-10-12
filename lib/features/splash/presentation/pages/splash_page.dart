@@ -1,8 +1,16 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_logo.dart';
 
+/// Shown while AuthStateCubit resolves the session (min. 2s).
+///
+/// The very first frame is identical to the native launch screen
+/// (flutter_native_splash in pubspec.yaml): a [_logoSize] logo centred on
+/// [AppColors.splashBackground]. Everything else animates in from there, so
+/// the hand-off from native to Flutter is invisible.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
 
@@ -10,579 +18,318 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
+const double _logoSize = 112;
+const double _logoLift = 52;
+
 class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
-  late final AnimationController _ambientController;
-  late final AnimationController _entranceController;
+  late final AnimationController _entrance;
+  late final AnimationController _ambient;
 
-  late final Animation<double> _logoFade;
-  late final Animation<double> _logoScale;
-  late final Animation<double> _titleFade;
-  late final Animation<Offset> _titleSlide;
-  late final Animation<double> _taglineFade;
-  late final Animation<Offset> _taglineSlide;
-  late final Animation<double> _loaderFade;
-
-  late final List<_FloatingIcon> _floatingIcons;
-  late final List<_Particle> _particles;
+  late final Animation<double> _backdrop;
+  late final Animation<double> _lift;
+  late final Animation<double> _wordmark;
+  late final Animation<double> _tagline;
+  late final Animation<double> _loader;
 
   @override
   void initState() {
     super.initState();
-
-    _ambientController = AnimationController(
+    _entrance = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 24),
+      duration: const Duration(milliseconds: 1600),
+    );
+    _ambient = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
     )..repeat();
 
-    _entranceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    );
-
-    _logoFade = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
-    );
-    _logoScale = Tween<double>(begin: 0.82, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _titleFade = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.35, 0.75, curve: Curves.easeOut),
-    );
-    _titleSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _entranceController,
-            curve: const Interval(0.35, 0.75, curve: Curves.easeOutCubic),
-          ),
+    CurvedAnimation interval(double begin, double end, Curve curve) =>
+        CurvedAnimation(
+          parent: _entrance,
+          curve: Interval(begin, end, curve: curve),
         );
 
-    _taglineFade = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.55, 0.9, curve: Curves.easeOut),
-    );
-    _taglineSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _entranceController,
-            curve: const Interval(0.55, 0.9, curve: Curves.easeOutCubic),
-          ),
-        );
+    _backdrop = interval(0.0, 0.55, Curves.easeOut);
+    _lift = interval(0.18, 0.62, Curves.easeInOutCubic);
+    _wordmark = interval(0.40, 0.80, Curves.easeOutCubic);
+    _tagline = interval(0.52, 0.92, Curves.easeOutCubic);
+    _loader = interval(0.75, 1.0, Curves.easeOut);
 
-    _loaderFade = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.8, 1.0, curve: Curves.easeOut),
-    );
+    _entrance.forward();
+  }
 
-    _floatingIcons = _buildFloatingIcons();
-    _particles = _buildParticles();
-
-    _entranceController.forward();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _entrance.value = 1;
+      _ambient.stop();
+    }
   }
 
   @override
   void dispose() {
-    _ambientController.dispose();
-    _entranceController.dispose();
+    _entrance.dispose();
+    _ambient.dispose();
     super.dispose();
-  }
-
-  List<_FloatingIcon> _buildFloatingIcons() {
-    const icons = [
-      Icons.school_rounded, // graduation cap
-      Icons.menu_book_rounded, // open book
-      Icons.account_balance_rounded, // campus building
-      Icons.edit_outlined, // pencil
-      Icons.lightbulb_outline_rounded, // idea
-      Icons.workspace_premium_outlined, // diploma/medal
-      Icons.auto_stories_rounded, // stacked books
-    ];
-    const positions = [
-      Offset(0.10, 0.12),
-      Offset(0.80, 0.10),
-      Offset(0.85, 0.32),
-      Offset(0.08, 0.34),
-      Offset(0.15, 0.68),
-      Offset(0.82, 0.62),
-      Offset(0.50, 0.08),
-    ];
-    final rnd = math.Random(7); // fixed seed — consistent, non-jarring layout
-    return List.generate(icons.length, (i) {
-      return _FloatingIcon(
-        icon: icons[i],
-        left: positions[i].dx,
-        top: positions[i].dy,
-        size: 22 + rnd.nextDouble() * 12,
-        floatSpeed: 0.5 + rnd.nextDouble() * 0.6,
-        floatAmplitude: 10 + rnd.nextDouble() * 8,
-        rotateSpeed: 0.3 + rnd.nextDouble() * 0.4,
-        rotateAmplitude: 0.06 + rnd.nextDouble() * 0.05,
-        phase: rnd.nextDouble() * 2 * math.pi,
-        opacity: 0.10 + rnd.nextDouble() * 0.08,
-      );
-    });
-  }
-
-  List<_Particle> _buildParticles() {
-    final rnd = math.Random(21);
-    return List.generate(22, (_) {
-      return _Particle(
-        x: rnd.nextDouble(),
-        startY: rnd.nextDouble(),
-        size: 1.5 + rnd.nextDouble() * 2.5,
-        speed: 0.4 + rnd.nextDouble() * 0.8,
-        driftAmplitude: 0.02 + rnd.nextDouble() * 0.03,
-        phase: rnd.nextDouble() * 2 * math.pi,
-        opacity: 0.12 + rnd.nextDouble() * 0.22,
-      );
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              _AnimatedGradientBackground(controller: _ambientController),
-              _ParticleField(
-                controller: _ambientController,
-                particles: _particles,
-              ),
-              ..._floatingIcons.map(
-                (item) => _FloatingIconWidget(
-                  controller: _ambientController,
-                  item: item,
-                  constraints: constraints,
-                ),
-              ),
-              _WaveLayer(controller: _ambientController),
-              _CenterContent(
-                logoFade: _logoFade,
-                logoScale: _logoScale,
-                titleFade: _titleFade,
-                titleSlide: _titleSlide,
-                taglineFade: _taglineFade,
-                taglineSlide: _taglineSlide,
-                loaderFade: _loaderFade,
-                ambientController: _ambientController,
-              ),
-            ],
-          );
-        },
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: AppColors.splashBackground,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.splashBackground,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = constraints.biggest;
+            final center = Offset(size.width / 2, size.height / 2);
+
+            return AnimatedBuilder(
+              animation: Listenable.merge([_entrance, _ambient]),
+              builder: (context, _) {
+                final logoCenter = center.translate(
+                  0,
+                  -_logoLift * _lift.value,
+                );
+                final textTop = logoCenter.dy + _logoSize / 2 + 28;
+
+                return Stack(
+                  children: [
+                    // Drifting brand-coloured glows.
+                    Opacity(
+                      opacity: _backdrop.value,
+                      child: _AmbientGlows(t: _ambient.value, size: size),
+                    ),
+
+                    // "Hub" ripples radiating from the logo.
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _RipplePainter(
+                          center: logoCenter,
+                          t: _ambient.value,
+                          opacity: _backdrop.value,
+                        ),
+                      ),
+                    ),
+
+                    // Logo.
+                    Positioned(
+                      left: logoCenter.dx - _logoSize / 2,
+                      top: logoCenter.dy - _logoSize / 2,
+                      child: const AppLogo(
+                        size: _logoSize,
+                        showWordmark: false,
+                        onDark: true,
+                      ),
+                    ),
+
+                    // Wordmark + tagline.
+                    Positioned(
+                      left: 24,
+                      right: 24,
+                      top: textTop,
+                      child: Column(
+                        children: [
+                          _Reveal(
+                            animation: _wordmark,
+                            child: const AppWordmark(
+                              onDark: true,
+                              fontSize: 32,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _Reveal(
+                            animation: _tagline,
+                            child: Text(
+                              'Your campus, simplified.',
+                              style: AppTextStyles.body.copyWith(
+                                color: Colors.white.withValues(alpha: 0.72),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Loader + footer.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: SafeArea(
+                        top: false,
+                        child: Opacity(
+                          opacity: _loader.value,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 28),
+                            child: Column(
+                              children: [
+                                _PulsingDots(t: _ambient.value),
+                                const SizedBox(height: 18),
+                                Text(
+                                  'Complaints  ·  Venues  ·  Suggestions',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.45),
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-// ============================================================================
-// Background gradient — slowly drifting light source, never static.
-// ============================================================================
-
-class _AnimatedGradientBackground extends StatelessWidget {
-  final AnimationController controller;
-  const _AnimatedGradientBackground({required this.controller});
+/// Fades and slides its child up as [animation] goes 0 -> 1.
+class _Reveal extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+  const _Reveal({required this.animation, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final t = controller.value * 2 * math.pi;
-        final dx = math.cos(t * 0.15) * 0.6;
-        final dy = math.sin(t * 0.15) * 0.6;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(dx, -0.6 + dy * 0.3),
-              radius: 1.4,
-              colors: [
-                AppColors.primary.withValues(alpha: 0.07),
-                AppColors.background,
-              ],
-            ),
-          ),
-        );
-      },
+    return Opacity(
+      opacity: animation.value,
+      child: Transform.translate(
+        offset: Offset(0, 14 * (1 - animation.value)),
+        child: child,
+      ),
     );
   }
 }
 
-// ============================================================================
-// Rising particle field
-// ============================================================================
-
-class _Particle {
-  final double x, startY, size, speed, driftAmplitude, phase, opacity;
-  const _Particle({
-    required this.x,
-    required this.startY,
-    required this.size,
-    required this.speed,
-    required this.driftAmplitude,
-    required this.phase,
-    required this.opacity,
-  });
-}
-
-class _ParticleField extends StatelessWidget {
-  final AnimationController controller;
-  final List<_Particle> particles;
-  const _ParticleField({required this.controller, required this.particles});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        return CustomPaint(
-          painter: _ParticlesPainter(
-            t: controller.value,
-            particles: particles,
-            color: AppColors.primary,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ParticlesPainter extends CustomPainter {
+class _AmbientGlows extends StatelessWidget {
   final double t;
-  final List<_Particle> particles;
-  final Color color;
-  _ParticlesPainter({
-    required this.t,
-    required this.particles,
-    required this.color,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (final p in particles) {
-      // Rises from startY toward the top, then wraps back to the bottom.
-      var progress = (p.startY - t * p.speed) % 1.0;
-      if (progress < 0) progress += 1.0;
-      final y = progress * size.height;
-      final x =
-          (p.x + math.sin(t * 2 * math.pi + p.phase) * p.driftAmplitude) *
-          size.width;
-      paint.color = color.withValues(alpha: p.opacity);
-      canvas.drawCircle(Offset(x, y), p.size, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ParticlesPainter oldDelegate) =>
-      oldDelegate.t != t;
-}
-
-// ============================================================================
-// Floating academic iconography
-// ============================================================================
-
-class _FloatingIcon {
-  final IconData icon;
-  final double left,
-      top,
-      size,
-      floatSpeed,
-      floatAmplitude,
-      rotateSpeed,
-      rotateAmplitude,
-      phase,
-      opacity;
-  const _FloatingIcon({
-    required this.icon,
-    required this.left,
-    required this.top,
-    required this.size,
-    required this.floatSpeed,
-    required this.floatAmplitude,
-    required this.rotateSpeed,
-    required this.rotateAmplitude,
-    required this.phase,
-    required this.opacity,
-  });
-}
-
-class _FloatingIconWidget extends StatelessWidget {
-  final AnimationController controller;
-  final _FloatingIcon item;
-  final BoxConstraints constraints;
-  const _FloatingIconWidget({
-    required this.controller,
-    required this.item,
-    required this.constraints,
-  });
+  final Size size;
+  const _AmbientGlows({required this.t, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final t = controller.value;
-        final dy =
-            math.sin(t * 2 * math.pi * item.floatSpeed + item.phase) *
-            item.floatAmplitude;
-        final angle =
-            math.sin(t * 2 * math.pi * item.rotateSpeed + item.phase) *
-            item.rotateAmplitude;
-        return Positioned(
-          left: constraints.maxWidth * item.left,
-          top: constraints.maxHeight * item.top + dy,
-          child: Transform.rotate(
-            angle: angle,
-            child: Icon(
-              item.icon,
-              size: item.size,
-              color: AppColors.primary.withValues(alpha: item.opacity),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ============================================================================
-// Layered waves anchored to the bottom
-// ============================================================================
-
-class _WaveLayer extends StatelessWidget {
-  final AnimationController controller;
-  const _WaveLayer({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final t = controller.value;
-        return Stack(
-          children: [
-            CustomPaint(
-              size: Size.infinite,
-              painter: _WavePainter(
-                t: t,
-                color: AppColors.primary.withValues(alpha: 0.05),
-                amplitude: 14,
-                frequency: 1.4,
-                speed: 0.35,
-                phaseOffset: 0,
-                verticalPosition: 0.90,
-              ),
-            ),
-            CustomPaint(
-              size: Size.infinite,
-              painter: _WavePainter(
-                t: t,
-                color: AppColors.secondary.withValues(alpha: 0.07),
-                amplitude: 18,
-                frequency: 1.1,
-                speed: 0.5,
-                phaseOffset: math.pi / 3,
-                verticalPosition: 0.94,
-              ),
-            ),
-            CustomPaint(
-              size: Size.infinite,
-              painter: _WavePainter(
-                t: t,
-                color: AppColors.primary.withValues(alpha: 0.10),
-                amplitude: 10,
-                frequency: 1.8,
-                speed: 0.7,
-                phaseOffset: math.pi / 1.5,
-                verticalPosition: 0.97,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _WavePainter extends CustomPainter {
-  final double t, amplitude, frequency, speed, phaseOffset, verticalPosition;
-  final Color color;
-  _WavePainter({
-    required this.t,
-    required this.color,
-    required this.amplitude,
-    required this.frequency,
-    required this.speed,
-    required this.phaseOffset,
-    required this.verticalPosition,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    final path = Path();
-    final baseY = size.height * verticalPosition;
-    final phase = t * 2 * math.pi * speed + phaseOffset;
-
-    path.moveTo(0, size.height);
-    path.lineTo(0, baseY);
-    for (double x = 0; x <= size.width; x += 6) {
-      final y =
-          baseY +
-          math.sin((x / size.width) * frequency * 2 * math.pi + phase) *
-              amplitude;
-      path.lineTo(x, y);
-    }
-    path.lineTo(size.width, size.height);
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _WavePainter oldDelegate) => oldDelegate.t != t;
-}
-
-// ============================================================================
-// Center content — glow ring, logo, staggered title/tagline, loader
-// ============================================================================
-
-class _CenterContent extends StatelessWidget {
-  final Animation<double> logoFade;
-  final Animation<double> logoScale;
-  final Animation<double> titleFade;
-  final Animation<Offset> titleSlide;
-  final Animation<double> taglineFade;
-  final Animation<Offset> taglineSlide;
-  final Animation<double> loaderFade;
-  final AnimationController ambientController;
-
-  const _CenterContent({
-    required this.logoFade,
-    required this.logoScale,
-    required this.titleFade,
-    required this.titleSlide,
-    required this.taglineFade,
-    required this.taglineSlide,
-    required this.loaderFade,
-    required this.ambientController,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    final a = t * 2 * math.pi;
+    final d = size.width * 1.3;
+    return Stack(
       children: [
-        AnimatedBuilder(
-          animation: Listenable.merge([logoFade, ambientController]),
-          builder: (context, child) {
-            final glowT = ambientController.value * 2 * math.pi;
-            final pulse = 0.5 + math.sin(glowT * 0.5) * 0.5; // 0..1
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                // Pulsing glow ring behind the logo
-                Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(
-                          alpha: 0.10 + pulse * 0.08,
-                        ),
-                        blurRadius: 40 + pulse * 20,
-                        spreadRadius: 4 + pulse * 6,
-                      ),
-                    ],
-                  ),
-                ),
-                Opacity(
-                  opacity: logoFade.value,
-                  child: Transform.scale(scale: logoScale.value, child: child),
-                ),
-              ],
-            );
-          },
-          child: const AppLogo(size: 96),
+        Positioned(
+          left: -d * 0.45 + math.cos(a) * 24,
+          top: -d * 0.35 + math.sin(a) * 30,
+          child: _Glow(
+            diameter: d,
+            color: const Color(0xFF2F55C8),
+            alpha: 0.55,
+          ),
         ),
-        const SizedBox(height: 24),
-        // FadeTransition(
-        //   opacity: titleFade,
-        //   child: SlideTransition(
-        //     position: titleSlide,
-        //     child: Text(
-        //       'CampusHub',
-        //       style: AppTextStyles.h1.copyWith(letterSpacing: 0.5),
-        //     ),
-        //   ),
-        // ),
-        // const SizedBox(height: 8),
-        // FadeTransition(
-        //   opacity: taglineFade,
-        //   child: SlideTransition(
-        //     position: taglineSlide,
-        //     child: Text(
-        //       'Your Campus, Simplified',
-        //       style: AppTextStyles.bodySecondary.copyWith(letterSpacing: 0.3),
-        //     ),
-        //   ),
-        // ),
-        const SizedBox(height: 56),
-        FadeTransition(
-          opacity: loaderFade,
-          child: _PulsingDots(controller: ambientController),
+        Positioned(
+          right: -d * 0.5 + math.sin(a) * 28,
+          bottom: -d * 0.4 + math.cos(a) * 22,
+          child: _Glow(diameter: d, color: AppColors.secondary, alpha: 0.42),
         ),
       ],
     );
   }
 }
 
-class _PulsingDots extends StatelessWidget {
-  final AnimationController controller;
-  const _PulsingDots({required this.controller});
+class _Glow extends StatelessWidget {
+  final double diameter;
+  final Color color;
+  final double alpha;
+  const _Glow({
+    required this.diameter,
+    required this.color,
+    required this.alpha,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final t = controller.value * 2 * math.pi;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final phase = i * (math.pi / 2.2);
-            final scale = 0.6 + (0.5 + math.sin(t * 3 + phase) * 0.5) * 0.4;
-            final opacity = 0.35 + (0.5 + math.sin(t * 3 + phase) * 0.5) * 0.5;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withValues(alpha: opacity),
-                  ),
-                ),
+    return Container(
+      width: diameter,
+      height: diameter,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            color.withValues(alpha: alpha),
+            color.withValues(alpha: 0),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RipplePainter extends CustomPainter {
+  final Offset center;
+  final double t;
+  final double opacity;
+  _RipplePainter({
+    required this.center,
+    required this.t,
+    required this.opacity,
+  });
+
+  static const int _rings = 3;
+  static const double _cyclesPerLoop = 4; // ripple speed within the 12s loop
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity == 0) return;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (var i = 0; i < _rings; i++) {
+      final p = (t * _cyclesPerLoop + i / _rings) % 1.0;
+      final radius = _logoSize * 0.62 + p * 130;
+      final alpha = (1 - p) * 0.22 * opacity;
+      paint.color = Colors.white.withValues(alpha: alpha);
+      canvas.drawCircle(center, radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RipplePainter old) =>
+      old.t != t || old.center != center || old.opacity != opacity;
+}
+
+class _PulsingDots extends StatelessWidget {
+  final double t;
+  const _PulsingDots({required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = t * 2 * math.pi * 6;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        final wave = 0.5 + math.sin(a - i * 0.9) * 0.5; // 0..1
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Transform.scale(
+            scale: 0.7 + wave * 0.4,
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.35 + wave * 0.55),
               ),
-            );
-          }),
+            ),
+          ),
         );
-      },
+      }),
     );
   }
 }

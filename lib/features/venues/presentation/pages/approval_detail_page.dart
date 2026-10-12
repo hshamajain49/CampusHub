@@ -3,7 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/bottom_action_bar.dart';
+import '../../../../core/widgets/info_row.dart';
+import '../../../../core/widgets/state_views.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../../di/injection_container.dart';
 import '../../domain/entities/booking_entity.dart';
 import '../../domain/entities/booking_status.dart';
@@ -11,7 +17,8 @@ import '../cubit/booking_detail_cubit/booking_detail_cubit.dart';
 import '../cubit/booking_detail_cubit/booking_detail_state.dart';
 import '../cubit/approval_action_cubit/approval_action_cubit.dart';
 import '../cubit/approval_action_cubit/approval_action_state.dart';
-import '../widgets/booking_status_badge.dart';
+import '../utils/booking_status_ui_extension.dart';
+import '../widgets/booking_header_card.dart';
 
 class ApprovalDetailPage extends StatelessWidget {
   final String bookingId;
@@ -35,7 +42,6 @@ class _ApprovalDetailView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Booking Request')),
       body: BlocConsumer<ApprovalActionCubit, ApprovalActionState>(
         listener: (context, actionState) {
@@ -61,15 +67,10 @@ class _ApprovalDetailView extends StatelessWidget {
           return BlocBuilder<BookingDetailCubit, BookingDetailState>(
             builder: (context, state) {
               if (state is BookingDetailLoading) {
-                return const Center(child: CircularProgressIndicator());
+                return const LoadingView();
               }
               if (state is BookingDetailError) {
-                return Center(
-                  child: Text(
-                    state.message,
-                    style: AppTextStyles.bodySecondary,
-                  ),
-                );
+                return ErrorState(message: state.message);
               }
               final booking = (state as BookingDetailLoaded).booking;
               return _DetailBody(
@@ -89,8 +90,6 @@ class _DetailBody extends StatelessWidget {
   final bool isSubmitting;
   const _DetailBody({required this.booking, required this.isSubmitting});
 
-  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
-
   void _showRejectDialog(BuildContext context) {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -101,19 +100,31 @@ class _DetailBody extends StatelessWidget {
         title: const Text('Reject booking'),
         content: Form(
           key: formKey,
-          child: TextFormField(
-            controller: controller,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Reason for rejection (required)',
-              border: OutlineInputBorder(),
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Please provide a reason';
-              }
-              return null;
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${booking.studentName} will see this reason.',
+                style: AppTextStyles.bodySecondary,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: controller,
+                maxLines: 3,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  hintText: 'Reason for rejection (required)',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please provide a reason';
+                  }
+                  return null;
+                },
+              ),
+            ],
           ),
         ),
         actions: [
@@ -121,7 +132,11 @@ class _DetailBody extends StatelessWidget {
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              minimumSize: const Size(0, 44),
+            ),
             onPressed: () {
               if (!formKey.currentState!.validate()) return;
               Navigator.of(dialogContext).pop();
@@ -130,7 +145,7 @@ class _DetailBody extends StatelessWidget {
                 controller.text.trim(),
               );
             },
-            child: Text('Reject', style: TextStyle(color: AppColors.error)),
+            child: const Text('Reject'),
           ),
         ],
       ),
@@ -139,83 +154,110 @@ class _DetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel = _fmtDate(booking.startDate) == _fmtDate(booking.endDate)
-        ? _fmtDate(booking.startDate)
-        : '${_fmtDate(booking.startDate)} — ${_fmtDate(booking.endDate)}';
+    final isPending = booking.status == BookingStatus.pending;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            children: [
+              BookingHeaderCard(booking: booking),
+              const SizedBox(height: 16),
+              AppCard(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    UserAvatar(name: booking.studentName, size: 44),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Requested by', style: AppTextStyles.caption),
+                          Text(booking.studentName, style: AppTextStyles.title),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      formatDate(booking.createdAt),
+                      style: AppTextStyles.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SectionCard(
+                title: 'Details',
+                child: Column(
+                  children: [
+                    InfoRow(
+                      icon: Icons.edit_calendar_outlined,
+                      label: 'Purpose',
+                      value: booking.purpose,
+                    ),
+                    InfoRow(
+                      icon: Icons.date_range_outlined,
+                      color: AppColors.venues,
+                      label: 'Date',
+                      value: formatDateRange(
+                        booking.startDate,
+                        booking.endDate,
+                      ),
+                    ),
+                    InfoRow(
+                      icon: Icons.schedule_rounded,
+                      color: AppColors.venues,
+                      label: 'Time',
+                      value: booking.isFullDay
+                          ? 'Full day'
+                          : '${booking.startTime} – ${booking.endTime}',
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+              if (booking.status == BookingStatus.rejected &&
+                  booking.rejectionReason != null) ...[
+                const SizedBox(height: 12),
+                BookingNotice(
+                  icon: Icons.info_outline_rounded,
+                  color: booking.status.color,
+                  title: 'Rejection reason',
+                  message: booking.rejectionReason!,
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (isPending)
+          BottomActionBar(
+            child: Row(
               children: [
                 Expanded(
-                  child: Text(booking.venueName, style: AppTextStyles.h1),
+                  child: AppButton(
+                    label: 'Reject',
+                    icon: Icons.close_rounded,
+                    variant: AppButtonVariant.danger,
+                    onPressed: isSubmitting
+                        ? null
+                        : () => _showRejectDialog(context),
+                  ),
                 ),
-                BookingStatusBadge(status: booking.status),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppButton(
+                    label: 'Approve',
+                    icon: Icons.check_rounded,
+                    isLoading: isSubmitting,
+                    onPressed: () =>
+                        context.read<ApprovalActionCubit>().approve(booking.id),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 20),
-            Text('Requested by', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(booking.studentName, style: AppTextStyles.body),
-            const SizedBox(height: 16),
-            Text('Purpose', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(booking.purpose, style: AppTextStyles.body),
-            const SizedBox(height: 16),
-            Text('Date', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(dateLabel, style: AppTextStyles.body),
-            const SizedBox(height: 16),
-            Text('Time', style: AppTextStyles.caption),
-            const SizedBox(height: 4),
-            Text(
-              booking.isFullDay
-                  ? 'Full day'
-                  : '${booking.startTime} - ${booking.endTime}',
-              style: AppTextStyles.body,
-            ),
-            if (booking.status == BookingStatus.rejected &&
-                booking.rejectionReason != null) ...[
-              const SizedBox(height: 16),
-              Text('Rejection reason', style: AppTextStyles.caption),
-              const SizedBox(height: 4),
-              Text(booking.rejectionReason!, style: AppTextStyles.body),
-            ],
-            if (booking.status == BookingStatus.pending) ...[
-              const SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.error,
-                      ),
-                      onPressed: isSubmitting
-                          ? null
-                          : () => _showRejectDialog(context),
-                      child: const Text('Reject'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AppButton(
-                      label: 'Approve',
-                      isLoading: isSubmitting,
-                      onPressed: () => context
-                          .read<ApprovalActionCubit>()
-                          .approve(booking.id),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }

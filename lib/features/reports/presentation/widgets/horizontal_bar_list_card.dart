@@ -42,27 +42,46 @@ class HorizontalBarListCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               d.label,
-                              style: AppTextStyles.bodySecondary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.bodySecondary.copyWith(
+                                fontSize: 13,
+                              ),
                             ),
                           ),
-                          Text('${d.value}', style: AppTextStyles.caption),
+                          const SizedBox(width: 8),
+                          Text('${d.value}', style: AppTextStyles.label),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) => Stack(
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox(
+                          height: 8,
+                          child: Stack(
                             children: [
-                              Container(
-                                height: 8,
-                                width: constraints.maxWidth,
-                                color: AppColors.divider,
-                              ),
-                              Container(
-                                height: 8,
-                                width: constraints.maxWidth * fraction,
-                                color: d.color,
+                              Container(color: AppColors.surfaceMuted),
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: fraction),
+                                duration: const Duration(milliseconds: 700),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, value, _) =>
+                                    FractionallySizedBox(
+                                      widthFactor: value,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              d.color.withValues(alpha: 0.7),
+                                              d.color,
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                               ),
                             ],
                           ),
