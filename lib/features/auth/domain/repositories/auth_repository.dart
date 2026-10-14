@@ -22,6 +22,10 @@ abstract class AuthRepository {
   /// Returns the currently logged-in user, or null if not logged in.
   Future<Either<Failure, UserEntity?>> getCurrentUser();
 
+  /// Permanently deletes the logged-in user's own account. [password] is
+  /// re-checked first, so a borrowed unlocked phone can't delete it.
+  Future<Either<Failure, void>> deleteAccount({required String password});
+
   /// Real-time stream of auth state changes (login/logout events).
   Stream<UserEntity?> get authStateChanges;
 }

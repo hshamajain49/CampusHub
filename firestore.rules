@@ -1,0 +1,223 @@
+rules_version = '2';
+
+// CampusHub Firestore security rules.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+// Tests:        firestore_tests/ (runs against the local emulator)
+//
+// Roles live in users/{uid}.role: student | department_staff |
+// venue_coordinator | admin. Accounts without isActive are treated as active
+// (documents written before that field existed).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function profile() {
+      return get(userDoc(request.auth.uid)).data;
+    }
+
+    // Signed in with an existing, non-deactivated profile.
+    function isMember() {
+      return signedIn()
+        && exists(userDoc(request.auth.uid))
+        && profile().get('isActive', true) == true;
+    }
+
+    function hasRole(role) {
+      return isMember() && profile().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // Name written over a deleted user's complaints and bookings.
+    function isAnonymised(field) {
+      return request.resource.data[field] == resource.data[field]
+        || request.resource.data[field] == 'Deleted user';
+    }
+
+    // ------------------------------------------------------------------ users
+
+    match /users/{uid} {
+      allow get: if isUser(uid) || isAdmin();
+      allow list: if isAdmin();
+
+      // Self-registration always creates a plain, active student; admins
+      // create Staff / Coordinator / Admin accounts.
+      allow create: if (
+          isUser(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'student'
+          && request.resource.data.get('department', null) == null
+          && request.resource.data.get('isActive', true) == true
+        ) || (
+          isAdmin() && request.resource.data.uid == uid
+        );
+
+      // Role, department and activation are admin-only.
+      allow update: if isAdmin();
+
+      // Account deletion: only the owner or an admin, and only together with
+      // the deleted_accounts tombstone (written in the same batch) so the
+      // leftover sign-in is cleaned up on its next use.
+      allow delete: if (isUser(uid) || isAdmin())
+        && existsAfter(/databases/$(database)/documents/deleted_accounts/$(uid));
+    }
+
+    // Tombstones for deleted accounts. No personal data: uid, who deleted it
+    // and when. Never edited or removed by clients.
+    match /deleted_accounts/{uid} {
+      allow get: if isUser(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if (isUser(uid) || isAdmin())
+        && request.resource.data.keys().hasOnly(['uid', 'deletedBy', 'deletedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.deletedBy == request.auth.uid
+        && request.resource.data.deletedAt == request.time;
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------- complaints
+
+    match /complaints/{complaintId} {
+      function isAssignedStaff(data) {
+        return hasRole('department_staff')
+          && data.assignedDepartment == profile().get('department', '');
+      }
+
+      allow read: if isMember() && (
+        resource.data.studentId == request.auth.uid
+        || isAssignedStaff(resource.data)
+        || isAdmin()
+      );
+
+      allow create: if isMember()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'pending_review';
+
+      allow update: if isAdmin()
+        || (isAssignedStaff(resource.data) && changedOnly(['status', 'updatedAt']))
+        // Owner anonymising their complaint while deleting their account.
+        || (resource.data.studentId == request.auth.uid
+            && changedOnly(['studentName'])
+            && request.resource.data.studentName == 'Deleted user');
+
+      allow delete: if isAdmin();
+    }
+
+    // --------------------------------------------------------------- bookings
+
+    match /bookings/{bookingId} {
+      function isOwnerEdit() {
+        let before = resource.data;
+        let after = request.resource.data;
+        return before.studentId == request.auth.uid
+          && changedOnly(['purpose', 'startDate', 'endDate', 'isFullDay',
+                          'startTime', 'endTime', 'status', 'updatedAt',
+                          'studentName'])
+          && isAnonymised('studentName')
+          // Keep the status, cancel, or drop back to pending after an
+          // approved booking's date/time is changed. Never self-approve.
+          && (after.status == before.status
+              || after.status == 'cancelled'
+              || (before.status == 'approved' && after.status == 'pending'));
+      }
+
+      function isCoordinatorDecision() {
+        return isMember()
+          && resource.data.coordinatorId == request.auth.uid
+          && changedOnly(['status', 'rejectionReason', 'updatedAt'])
+          && request.resource.data.status in ['approved', 'rejected'];
+      }
+
+      // A coordinator deleting their account hands pending requests to
+      // whoever coordinates the venue now.
+      function isHandOver() {
+        return resource.data.coordinatorId == request.auth.uid
+          && resource.data.status == 'pending'
+          && changedOnly(['coordinatorId'])
+          && request.resource.data.coordinatorId
+             == get(/databases/$(database)/documents/venues/$(resource.data.venueId)).data.coordinatorId;
+      }
+
+      // Any member may read: the availability check needs other people's
+      // pending and approved bookings for the venue.
+      allow read: if isMember();
+
+      allow create: if isMember()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow update: if isAdmin()
+        || isOwnerEdit()
+        || isCoordinatorDecision()
+        || isHandOver();
+
+      allow delete: if isAdmin();
+    }
+
+    // ----------------------------------------------------------------- venues
+
+    match /venues/{venueId} {
+      allow read: if isMember();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ suggestions
+
+    match /suggestions/{suggestionId} {
+      // Adds or removes only the caller's own vote.
+      function isOwnVoteChange() {
+        let before = resource.data.get('upvotedBy', []).toSet();
+        let after = request.resource.data.get('upvotedBy', []).toSet();
+        return after.difference(before).union(before.difference(after))
+          .hasOnly([request.auth.uid]);
+      }
+
+      allow read: if isMember();
+
+      allow create: if isMember()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.get('upvotedBy', []).size() == 0;
+
+      allow update: if changedOnly(['upvotedBy'])
+        && (isAdmin() || (isMember() && isOwnVoteChange()));
+
+      allow delete: if resource.data.authorId == request.auth.uid || isAdmin();
+    }
+
+    // ---------------------------------------------------------- notifications
+
+    match /notifications/{notificationId} {
+      allow read: if isUser(resource.data.recipientId) || isAdmin();
+
+      // Written by the client that triggers them (booking requests,
+      // decisions, complaint updates, cancellations).
+      allow create: if isMember()
+        && request.resource.data.recipientId is string
+        && request.resource.data.isRead == false;
+
+      allow update: if isUser(resource.data.recipientId) && changedOnly(['isRead']);
+
+      allow delete: if isUser(resource.data.recipientId) || isAdmin();
+    }
+  }
+}

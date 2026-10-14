@@ -212,7 +212,7 @@ class _NotificationBell extends StatelessWidget {
   }
 }
 
-enum _ProfileAction { logout }
+enum _ProfileAction { account, logout }
 
 class _ProfileMenu extends StatelessWidget {
   final UserEntity user;
@@ -225,6 +225,8 @@ class _ProfileMenu extends StatelessWidget {
       offset: const Offset(0, 52),
       onSelected: (action) {
         switch (action) {
+          case _ProfileAction.account:
+            context.push('/profile');
           case _ProfileAction.logout:
             sl<LogoutUseCase>().call();
         }
@@ -259,6 +261,23 @@ class _ProfileMenu extends StatelessWidget {
           ),
         ),
         const PopupMenuDivider(),
+        PopupMenuItem<_ProfileAction>(
+          value: _ProfileAction.account,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.manage_accounts_outlined,
+                size: 20,
+                color: AppColors.textPrimary,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'My account',
+                style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
         PopupMenuItem<_ProfileAction>(
           value: _ProfileAction.logout,
           child: Row(

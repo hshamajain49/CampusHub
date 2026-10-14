@@ -27,10 +27,14 @@ import 'package:get_it/get_it.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../features/admin/domain/usecases/delete_user_account_usecase.dart';
+import '../features/auth/data/datasources/account_data_cleaner.dart';
 import '../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../features/auth/data/repositories/auth_repository_impl.dart';
 import '../features/auth/domain/repositories/auth_repository.dart';
+import '../features/auth/domain/usecases/delete_account_usecase.dart';
 import '../features/auth/domain/usecases/login_usecase.dart';
+import '../features/profile/presentation/cubit/delete_account_cubit/delete_account_cubit.dart';
 import '../features/auth/domain/usecases/logout_usecase.dart';
 import '../features/auth/domain/usecases/get_current_user_usecase.dart';
 import '../features/auth/presentation/cubit/auth_state_cubit/auth_state_cubit.dart';
@@ -91,8 +95,15 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance);
   sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);
 
+  sl.registerLazySingleton(
+    () => AccountDataCleaner(firestore: sl(), notificationWriter: sl()),
+  );
   sl.registerLazySingleton<AuthRemoteDataSource>(
-    () => AuthRemoteDataSourceImpl(firebaseAuth: sl(), firestore: sl()),
+    () => AuthRemoteDataSourceImpl(
+      firebaseAuth: sl(),
+      firestore: sl(),
+      accountDataCleaner: sl(),
+    ),
   );
 
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
@@ -101,11 +112,13 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton(() => RegisterStudentUseCase(sl()));
   sl.registerLazySingleton(() => LogoutUseCase(sl()));
   sl.registerLazySingleton(() => GetCurrentUserUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteAccountUseCase(sl()));
 
   sl.registerLazySingleton(() => AuthStateCubit(authRepository: sl()));
 
   sl.registerFactory(() => LoginCubit(sl()));
   sl.registerFactory(() => RegisterCubit(sl()));
+  sl.registerFactory(() => DeleteAccountCubit(sl()));
   sl.registerLazySingleton(
     () => const CloudinaryService(
       cloudName: CloudinaryConstants.cloudName,
@@ -213,10 +226,15 @@ Future<void> setupDependencies() async {
   sl.registerFactory(() => ComplaintStatusActionCubit(sl()));
   // --- Admin feature ---
   sl.registerLazySingleton<AdminRemoteDataSource>(
-    () => AdminRemoteDataSourceImpl(firestore: sl(), firebaseAuth: sl()),
+    () => AdminRemoteDataSourceImpl(
+      firestore: sl(),
+      firebaseAuth: sl(),
+      accountDataCleaner: sl(),
+    ),
   );
   sl.registerLazySingleton(() => UpdateUserActiveStatusUseCase(sl()));
   sl.registerLazySingleton(() => SendPasswordResetUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteUserAccountUseCase(sl()));
   sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(sl()));
   sl.registerLazySingleton(() => GetAllUsersUseCase(sl()));
   sl.registerLazySingleton(() => CreateManagedUserUseCase(sl()));
@@ -228,6 +246,7 @@ Future<void> setupDependencies() async {
       updateUserRoleUseCase: sl(),
       updateUserActiveStatusUseCase: sl(),
       sendPasswordResetUseCase: sl(),
+      deleteUserAccountUseCase: sl(),
     ),
   );
   sl.registerLazySingleton(() => CreateVenueUseCase(sl()));

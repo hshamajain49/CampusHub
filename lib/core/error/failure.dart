@@ -19,6 +19,12 @@ class AuthFailure extends Failure {
   const AuthFailure(super.message);
 }
 
+/// The operation failed part-way and the user has been signed out, so the
+/// screen that started it is about to close.
+class SignedOutFailure extends AuthFailure {
+  const SignedOutFailure(super.message);
+}
+
 class CacheFailure extends Failure {
   const CacheFailure(super.message);
 }

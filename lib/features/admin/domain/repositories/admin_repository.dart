@@ -28,4 +28,7 @@ abstract class AdminRepository {
 
   // NEW
   Future<Either<Failure, void>> sendPasswordReset(String email);
+
+  /// Permanently deletes another user's account and handles their data.
+  Future<Either<Failure, void>> deleteUserAccount(String uid);
 }

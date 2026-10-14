@@ -33,6 +33,7 @@ class AppColors {
   static const Color venues = secondary;
   static const Color suggestions = accent;
   static const Color admin = primary;
+  static const Color reports = Color(0xFF7C3AED);
 
   static const LinearGradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,

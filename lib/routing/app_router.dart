@@ -34,6 +34,8 @@ import '../features/admin/presentation/pages/admin_edit_user_page.dart';
 import '../features/admin/presentation/pages/admin_venue_list_page.dart';
 import '../features/admin/presentation/pages/admin_venue_form_page.dart';
 import '../features/admin/presentation/pages/admin_venue_edit_loader_page.dart';
+import '../features/profile/presentation/pages/account_deleted_page.dart';
+import '../features/profile/presentation/pages/profile_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -53,6 +55,11 @@ class AppRouter {
 
       if (isInitial) {
         return goingToSplash ? null : '/';
+      }
+      // Shown right after self-deletion, which signs the user out; the page
+      // can be reached just before or just after that sign-out lands.
+      if (state.matchedLocation == '/account-deleted') {
+        return null;
       }
       if (!isAuthenticated && !goingToAuth) {
         return '/login';
@@ -104,6 +111,17 @@ class AppRouter {
         path: '/home',
         name: 'home',
         pageBuilder: (context, state) => _fadePage(state, const HomePage()),
+      ),
+      GoRoute(
+        path: '/profile',
+        name: 'profile',
+        builder: (context, state) => const ProfilePage(),
+      ),
+      GoRoute(
+        path: '/account-deleted',
+        name: 'accountDeleted',
+        pageBuilder: (context, state) =>
+            _fadePage(state, const AccountDeletedPage()),
       ),
       GoRoute(
         path: '/complaints',

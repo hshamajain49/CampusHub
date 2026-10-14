@@ -118,9 +118,37 @@ class VenueRemoteDataSourceImpl implements VenueRemoteDataSource {
         'coordinatorId': coordinatorId,
         'isActive': isActive,
       });
-      return getVenueById(id);
     } catch (e) {
       throw ServerException('Failed to update venue: ${e.toString()}');
     }
+
+    try {
+      await _handPendingRequestsTo(venueId: id, coordinatorId: coordinatorId);
+    } catch (_) {
+      throw const ServerException(
+        'Venue saved, but its pending booking requests could not be moved '
+        'to the new coordinator. Save again to retry.',
+      );
+    }
+    return getVenueById(id);
+  }
+
+  /// Pending requests stay addressed to whoever coordinated the venue when
+  /// they were made; after a reassignment, move them to the new coordinator
+  /// so they don't go unanswered. Idempotent, so a re-save retries it.
+  Future<void> _handPendingRequestsTo({
+    required String venueId,
+    required String coordinatorId,
+  }) async {
+    final pending = await firestore
+        .collection('bookings')
+        .where('venueId', isEqualTo: venueId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    await Future.wait([
+      for (final doc in pending.docs)
+        if (doc.data()['coordinatorId'] != coordinatorId)
+          doc.reference.update({'coordinatorId': coordinatorId}),
+    ]);
   }
 }

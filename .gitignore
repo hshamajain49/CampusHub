@@ -47,3 +47,8 @@ app.*.map.json
 
 lib/firebase_options.dart
 lib/core/constants/cloudinary_constants.dart
+# Firestore rules tests / emulator
+firestore_tests/node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

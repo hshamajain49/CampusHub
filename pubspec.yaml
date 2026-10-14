@@ -59,6 +59,11 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.8
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.5
+  # 4.2+ requires a newer cloud_firestore than the app currently uses.
+  fake_cloud_firestore: ">=4.1.1 <4.2.0"
+  firebase_auth_mocks: ^0.15.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

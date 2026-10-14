@@ -1,6 +1,7 @@
 import 'package:campus_hub/features/admin/domain/usecases/create_manage_user_usecase.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../auth/domain/entities/user_role.dart';
+import '../../../domain/usecases/delete_user_account_usecase.dart';
 import '../../../domain/usecases/send_password_reset_usecase.dart';
 import '../../../domain/usecases/update_user_active_status_usecase.dart';
 import '../../../domain/usecases/update_user_role_usecase.dart';
@@ -11,12 +12,14 @@ class UserActionCubit extends Cubit<UserActionState> {
   final UpdateUserRoleUseCase updateUserRoleUseCase;
   final UpdateUserActiveStatusUseCase updateUserActiveStatusUseCase;
   final SendPasswordResetUseCase sendPasswordResetUseCase;
+  final DeleteUserAccountUseCase deleteUserAccountUseCase;
 
   UserActionCubit({
     required this.createManagedUserUseCase,
     required this.updateUserRoleUseCase,
     required this.updateUserActiveStatusUseCase,
     required this.sendPasswordResetUseCase,
+    required this.deleteUserAccountUseCase,
   }) : super(const UserActionInitial());
 
   Future<void> createUser({
@@ -78,6 +81,17 @@ class UserActionCubit extends Cubit<UserActionState> {
     result.fold(
       (failure) => emit(UserActionError(failure.message)),
       (_) => emit(const PasswordResetSent()),
+    );
+  }
+
+  Future<void> deleteUser({required String uid, required String name}) async {
+    if (state is UserActionLoading) return;
+    emit(const UserDeleting());
+    final result = await deleteUserAccountUseCase(uid);
+    if (isClosed) return;
+    result.fold(
+      (failure) => emit(UserActionError(failure.message)),
+      (_) => emit(UserDeleted(name)),
     );
   }
 }

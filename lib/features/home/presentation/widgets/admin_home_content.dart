@@ -93,7 +93,7 @@ class AdminHomeContent extends StatelessWidget {
                   QuickActionCard(
                     icon: Icons.insights_rounded,
                     title: 'Reports',
-                    color: const Color(0xFF7C3AED),
+                    color: AppColors.reports,
                     onTap: () => context.push('/admin/reports'),
                   ),
                 ],

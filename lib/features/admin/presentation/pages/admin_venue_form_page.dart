@@ -92,8 +92,18 @@ class _VenueFormViewState extends State<_VenueFormView> {
     super.dispose();
   }
 
+  /// Whether [uid] is a current Venue Coordinator account.
+  bool _isCoordinator(String? uid) {
+    final state = context.read<AdminUsersCubit>().state;
+    return uid != null &&
+        state is AdminUsersLoaded &&
+        state.users.any(
+          (u) => u.uid == uid && u.role == UserRole.venueCoordinator,
+        );
+  }
+
   void _onSubmit() {
-    if (_coordinatorId == null) {
+    if (!_isCoordinator(_coordinatorId)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please assign a coordinator')),
       );
@@ -291,7 +301,15 @@ class _VenueFormViewState extends State<_VenueFormView> {
                             }
                             return DropdownButtonFormField<String>(
                               isExpanded: true,
-                              initialValue: _coordinatorId,
+                              // The saved coordinator may no longer be one
+                              // (role changed or account removed): show none
+                              // rather than crash on an unknown value.
+                              initialValue:
+                                  coordinators.any(
+                                    (u) => u.uid == _coordinatorId,
+                                  )
+                                  ? _coordinatorId
+                                  : null,
                               decoration: const InputDecoration(
                                 labelText: 'Coordinator',
                                 prefixIcon: Icon(

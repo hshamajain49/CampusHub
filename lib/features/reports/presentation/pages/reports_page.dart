@@ -241,9 +241,13 @@ class _GeneratedAtPill extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
             const SizedBox(width: 6),
-            Text(
-              'Generated ${formatDateTime(time)}',
-              style: AppTextStyles.caption,
+            Flexible(
+              child: Text(
+                'Generated ${formatDateTime(time)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption,
+              ),
             ),
           ],
         ),

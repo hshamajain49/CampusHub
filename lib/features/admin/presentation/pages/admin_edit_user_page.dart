@@ -18,6 +18,7 @@ import '../../../../di/injection_container.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../auth/domain/entities/user_role.dart';
 import '../../../auth/presentation/utils/user_role_ui_extension.dart';
+import '../widgets/delete_user_dialog.dart';
 import '../widgets/department_options.dart';
 
 class AdminEditUserPage extends StatelessWidget {
@@ -33,30 +34,74 @@ class AdminEditUserPage extends StatelessWidget {
       ],
       child: Scaffold(
         appBar: AppBar(title: const Text('Edit User')),
-        body: BlocBuilder<AdminUsersCubit, AdminUsersState>(
-          builder: (context, state) {
-            if (state is AdminUsersError) {
-              return ErrorState(message: state.message);
-            }
-            if (state is! AdminUsersLoaded) {
-              return const LoadingView();
-            }
-            final user = state.users
-                .where((u) => u.uid == uid)
-                .cast<UserEntity?>()
-                .firstOrNull;
-            if (user == null) {
-              return const EmptyState(
-                icon: Icons.person_off_outlined,
-                title: 'User not found',
-                message: 'This account may have been removed.',
-              );
-            }
-            return _EditUserBody(user: user);
-          },
+        // Listens above the user lookup: after a deletion the user can drop
+        // out of the live list before UserDeleted arrives, unmounting the body.
+        body: BlocListener<UserActionCubit, UserActionState>(
+          listener: _onActionState,
+          child: BlocBuilder<AdminUsersCubit, AdminUsersState>(
+            builder: (context, state) {
+              if (state is AdminUsersError) {
+                return ErrorState(message: state.message);
+              }
+              if (state is! AdminUsersLoaded) {
+                return const LoadingView();
+              }
+              final user = state.users
+                  .where((u) => u.uid == uid)
+                  .cast<UserEntity?>()
+                  .firstOrNull;
+              if (user == null) {
+                return const EmptyState(
+                  icon: Icons.person_off_outlined,
+                  title: 'User not found',
+                  message: 'This account may have been removed.',
+                );
+              }
+              return _EditUserBody(user: user);
+            },
+          ),
         ),
       ),
     );
+  }
+
+  void _onActionState(BuildContext context, UserActionState state) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (state is UserActionError) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(state.message),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+    if (state is UserRoleUpdated) {
+      messenger.showSnackBar(const SnackBar(content: Text('User updated.')));
+      context.pop();
+    }
+    if (state is UserActiveStatusChanged) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            state.isActive ? 'Account activated.' : 'Account deactivated.',
+          ),
+        ),
+      );
+    }
+    if (state is PasswordResetSent) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Password reset email sent.')),
+      );
+    }
+    if (state is UserDeleted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text("${state.name}'s account was deleted successfully."),
+          backgroundColor: AppColors.statusGreen,
+        ),
+      );
+      context.pop();
+    }
   }
 }
 
@@ -168,217 +213,245 @@ class _EditUserBodyState extends State<_EditUserBody> {
     }
   }
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await DeleteUserDialog.show(context, widget.user);
+    if (confirmed && mounted) {
+      context.read<UserActionCubit>().deleteUser(
+        uid: widget.user.uid,
+        name: widget.user.name,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = widget.user;
-    return BlocListener<UserActionCubit, UserActionState>(
-      listener: (context, state) {
-        if (state is UserActionError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-        if (state is UserRoleUpdated) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('User updated.')));
-          context.pop();
-        }
-        if (state is UserActiveStatusChanged) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                state.isActive ? 'Account activated.' : 'Account deactivated.',
-              ),
-            ),
-          );
-        }
-        if (state is PasswordResetSent) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Password reset email sent.')),
-          );
-        }
-      },
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppCard(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    UserAvatar(
-                      name: user.name,
-                      color: user.role.color,
-                      size: 56,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(user.name, style: AppTextStyles.h3),
-                          const SizedBox(height: 2),
-                          Text(
-                            user.email,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.caption,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              StatusPill(
-                                label: user.role.displayName,
-                                color: user.role.color,
-                                icon: user.role.icon,
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  UserAvatar(name: user.name, color: user.role.color, size: 56),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user.name, style: AppTextStyles.h3),
+                        const SizedBox(height: 2),
+                        Text(
+                          user.email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption,
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            StatusPill(
+                              label: user.role.displayName,
+                              color: user.role.color,
+                              icon: user.role.icon,
+                            ),
+                            if (!user.isActive)
+                              const StatusPill(
+                                label: 'Inactive',
+                                color: AppColors.statusRed,
                               ),
-                              if (!user.isActive)
-                                const StatusPill(
-                                  label: 'Inactive',
-                                  color: AppColors.statusRed,
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SectionCard(
-                title: 'Role & access',
-                child: Column(
-                  children: [
-                    DropdownButtonFormField<UserRole>(
-                      initialValue: _role,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        prefixIcon: Icon(Icons.badge_outlined, size: 20),
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      items: const [
-                        DropdownMenuItem(
-                          value: UserRole.student,
-                          child: Text('Student'),
-                        ),
-                        DropdownMenuItem(
-                          value: UserRole.departmentStaff,
-                          child: Text('Department Staff'),
-                        ),
-                        DropdownMenuItem(
-                          value: UserRole.venueCoordinator,
-                          child: Text('Venue Coordinator/Lecturer'),
-                        ),
-                        DropdownMenuItem(
-                          value: UserRole.admin,
-                          child: Text('Admin'),
+                          ],
                         ),
                       ],
-                      onChanged: (value) => setState(() {
-                        _role = value!;
-                        if (_role != UserRole.departmentStaff) {
-                          _department = null;
-                        }
-                      }),
                     ),
-                    if (_role == UserRole.departmentStaff) ...[
-                      const SizedBox(height: 14),
-                      DropdownButtonFormField<String>(
-                        initialValue: _department,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Department',
-                          prefixIcon: Icon(Icons.apartment_rounded, size: 20),
-                        ),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        items: kDepartmentOptions.map((d) {
-                          return DropdownMenuItem<String>(
-                            value: d,
-                            child: Text(
-                              d,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() => _department = value);
-                        },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SectionCard(
+              title: 'Role & access',
+              child: Column(
+                children: [
+                  DropdownButtonFormField<UserRole>(
+                    initialValue: _role,
+                    decoration: const InputDecoration(
+                      labelText: 'Role',
+                      prefixIcon: Icon(Icons.badge_outlined, size: 20),
+                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    items: const [
+                      DropdownMenuItem(
+                        value: UserRole.student,
+                        child: Text('Student'),
+                      ),
+                      DropdownMenuItem(
+                        value: UserRole.departmentStaff,
+                        child: Text('Department Staff'),
+                      ),
+                      DropdownMenuItem(
+                        value: UserRole.venueCoordinator,
+                        child: Text('Venue Coordinator/Lecturer'),
+                      ),
+                      DropdownMenuItem(
+                        value: UserRole.admin,
+                        child: Text('Admin'),
                       ),
                     ],
-                    const SizedBox(height: 18),
+                    onChanged: (value) => setState(() {
+                      _role = value!;
+                      if (_role != UserRole.departmentStaff) {
+                        _department = null;
+                      }
+                    }),
+                  ),
+                  if (_role == UserRole.departmentStaff) ...[
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: _department,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Department',
+                        prefixIcon: Icon(Icons.apartment_rounded, size: 20),
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      items: kDepartmentOptions.map((d) {
+                        return DropdownMenuItem<String>(
+                          value: d,
+                          child: Text(
+                            d,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() => _department = value);
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  BlocBuilder<UserActionCubit, UserActionState>(
+                    builder: (context, state) {
+                      return AppButton(
+                        label: 'Save Changes',
+                        icon: Icons.check_rounded,
+                        isLoading:
+                            state is UserActionLoading &&
+                            state is! UserDeleting,
+                        onPressed: state is UserDeleting ? null : _onSave,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SectionCard(
+              title: 'Account actions',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppButton(
+                    label: 'Send Password Reset Email',
+                    icon: Icons.email_outlined,
+                    variant: AppButtonVariant.outlined,
+                    onPressed: _confirmResetPassword,
+                  ),
+                  const SizedBox(height: 10),
+                  if (_isSelf)
+                    const _InfoNote(
+                      text: "You can't deactivate your own account.",
+                    )
+                  else
+                    user.isActive
+                        ? AppButton(
+                            label: 'Deactivate Account',
+                            icon: Icons.block_rounded,
+                            variant: AppButtonVariant.danger,
+                            onPressed: () => _confirmToggleActive(false),
+                          )
+                        : AppButton(
+                            label: 'Activate Account',
+                            icon: Icons.check_circle_outline_rounded,
+                            onPressed: () => _confirmToggleActive(true),
+                          ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            AppCard(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+              borderColor: AppColors.error.withValues(alpha: 0.3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'DANGER ZONE',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: AppColors.error),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_isSelf)
+                    _InfoNote(
+                      text:
+                          'To delete your own account, open My Account '
+                          'from the profile menu on the home screen.',
+                    )
+                  else ...[
+                    Text(
+                      'Permanently delete this account and its personal '
+                      'data. This cannot be undone.',
+                      style: AppTextStyles.bodySecondary,
+                    ),
+                    const SizedBox(height: 14),
                     BlocBuilder<UserActionCubit, UserActionState>(
                       builder: (context, state) {
                         return AppButton(
-                          label: 'Save Changes',
-                          icon: Icons.check_rounded,
-                          isLoading: state is UserActionLoading,
-                          onPressed: _onSave,
+                          label: 'Delete Account',
+                          icon: Icons.delete_forever_rounded,
+                          variant: AppButtonVariant.danger,
+                          isLoading: state is UserDeleting,
+                          onPressed: state is UserActionLoading
+                              ? null
+                              : _confirmDelete,
                         );
                       },
                     ),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              SectionCard(
-                title: 'Account actions',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AppButton(
-                      label: 'Send Password Reset Email',
-                      icon: Icons.email_outlined,
-                      variant: AppButtonVariant.outlined,
-                      onPressed: _confirmResetPassword,
-                    ),
-                    const SizedBox(height: 10),
-                    if (_isSelf)
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.info_outline_rounded,
-                            size: 16,
-                            color: AppColors.textTertiary,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              "You can't deactivate your own account.",
-                              style: AppTextStyles.caption,
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      user.isActive
-                          ? AppButton(
-                              label: 'Deactivate Account',
-                              icon: Icons.block_rounded,
-                              variant: AppButtonVariant.danger,
-                              onPressed: () => _confirmToggleActive(false),
-                            )
-                          : AppButton(
-                              label: 'Activate Account',
-                              icon: Icons.check_circle_outline_rounded,
-                              onPressed: () => _confirmToggleActive(true),
-                            ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _InfoNote extends StatelessWidget {
+  final String text;
+  const _InfoNote({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.info_outline_rounded,
+          size: 16,
+          color: AppColors.textTertiary,
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: AppTextStyles.caption)),
+      ],
     );
   }
 }

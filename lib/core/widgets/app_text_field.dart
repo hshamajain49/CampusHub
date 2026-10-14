@@ -16,6 +16,7 @@ class AppTextField extends StatelessWidget {
   final TextCapitalization textCapitalization;
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onFieldSubmitted;
+  final ValueChanged<String>? onChanged;
 
   const AppTextField({
     super.key,
@@ -33,6 +34,7 @@ class AppTextField extends StatelessWidget {
     this.textCapitalization = TextCapitalization.none,
     this.autofillHints,
     this.onFieldSubmitted,
+    this.onChanged,
   });
 
   @override
@@ -49,6 +51,7 @@ class AppTextField extends StatelessWidget {
       textCapitalization: textCapitalization,
       autofillHints: autofillHints,
       onFieldSubmitted: onFieldSubmitted,
+      onChanged: onChanged,
       style: AppTextStyles.body.copyWith(fontSize: 15),
       decoration: InputDecoration(
         labelText: label,

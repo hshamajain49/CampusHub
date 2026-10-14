@@ -78,4 +78,18 @@ class AdminRepositoryImpl implements AdminRepository {
       return Left(ServerFailure(e.message));
     }
   }
+
+  @override
+  Future<Either<Failure, void>> deleteUserAccount(String uid) async {
+    try {
+      await remoteDataSource.deleteUserAccount(uid);
+      return const Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    } catch (_) {
+      return const Left(
+        ServerFailure('Could not delete the account. Please try again.'),
+      );
+    }
+  }
 }

@@ -47,3 +47,16 @@ class UserActiveStatusChanged extends UserActionState {
 class PasswordResetSent extends UserActionState {
   const PasswordResetSent();
 }
+
+/// An account deletion is in progress (only the Delete button shows a spinner).
+class UserDeleting extends UserActionLoading {
+  const UserDeleting();
+}
+
+/// The account was deleted (Edit User page pops back to the list).
+class UserDeleted extends UserActionState {
+  final String name;
+  const UserDeleted(this.name);
+  @override
+  List<Object?> get props => [name];
+}
