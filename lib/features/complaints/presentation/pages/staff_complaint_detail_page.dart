@@ -103,6 +103,11 @@ class _DetailBody extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
               ComplaintHeaderCard(complaint: complaint),
+              if (complaint.status == ComplaintStatus.inProgress &&
+                  complaint.rejectionReason != null) ...[
+                const SizedBox(height: 12),
+                RejectionNote(reason: complaint.rejectionReason!),
+              ],
               const SizedBox(height: 16),
               SectionCard(
                 title: 'Details',
@@ -173,12 +178,20 @@ class _DetailBody extends StatelessWidget {
         );
       case ComplaintStatus.inProgress:
         return AppButton(
-          label: 'Mark Resolved',
+          label: 'Mark Work Done',
           icon: Icons.check_circle_outline_rounded,
           isLoading: isSubmitting,
           onPressed: () => context
               .read<ComplaintStatusActionCubit>()
-              .updateStatus(complaint.id, ComplaintStatus.resolved),
+              .updateStatus(complaint.id, ComplaintStatus.awaitingConfirmation),
+        );
+      case ComplaintStatus.awaitingConfirmation:
+        // Final approval belongs to the reporter, not staff.
+        return AppButton(
+          label: 'Waiting for ${complaint.studentName} to approve',
+          icon: Icons.rate_review_outlined,
+          variant: AppButtonVariant.outlined,
+          onPressed: null,
         );
       case ComplaintStatus.resolved:
         return AppButton(

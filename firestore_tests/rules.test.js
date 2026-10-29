@@ -392,6 +392,25 @@ describe('complaints', () => {
     await assertFails(updateDoc(doc(db('student'), 'complaints', 'c1'), { status: 'resolved' }));
   });
 
+  test('staff cannot resolve; only the reporter approves the work', async () => {
+    const ref = (who) => doc(db(who), 'complaints', 'c1');
+    await assertFails(updateDoc(ref('staff'), { status: 'resolved', updatedAt: 'x' }));
+    await assertSucceeds(updateDoc(ref('staff'), { status: 'awaiting_confirmation', updatedAt: 'x' }));
+
+    await assertFails(updateDoc(ref('other'), { status: 'resolved', updatedAt: 'y' }));
+    await assertFails(updateDoc(ref('student'), { status: 'pending_review', updatedAt: 'y' }));
+    await assertSucceeds(
+      updateDoc(ref('student'), { status: 'in_progress', rejectionReason: 'Still broken', updatedAt: 'y' }),
+    );
+    // Once back in progress the reporter can't resolve it on their own.
+    await assertFails(updateDoc(ref('student'), { status: 'resolved', updatedAt: 'z' }));
+
+    await assertSucceeds(updateDoc(ref('staff'), { status: 'awaiting_confirmation', updatedAt: 'z' }));
+    await assertSucceeds(
+      updateDoc(ref('student'), { status: 'resolved', rejectionReason: null, updatedAt: 'w' }),
+    );
+  });
+
   test('admins read all complaints for reports', async () => {
     await assertSucceeds(getDocs(collection(db('admin'), 'complaints')));
   });

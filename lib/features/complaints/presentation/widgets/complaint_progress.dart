@@ -3,12 +3,17 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../domain/entities/complaint_status.dart';
 
-/// Three-step tracker: Submitted -> In progress -> Resolved.
+/// Four-step tracker: Submitted -> In progress -> Your review -> Resolved.
 class ComplaintProgress extends StatelessWidget {
   final ComplaintStatus status;
   const ComplaintProgress({super.key, required this.status});
 
-  static const _labels = ['Submitted', 'In progress', 'Resolved'];
+  static const _labels = [
+    'Submitted',
+    'In progress',
+    'Your review',
+    'Resolved',
+  ];
 
   int get _currentStep {
     switch (status) {
@@ -17,8 +22,10 @@ class ComplaintProgress extends StatelessWidget {
         return 0;
       case ComplaintStatus.inProgress:
         return 1;
-      case ComplaintStatus.resolved:
+      case ComplaintStatus.awaitingConfirmation:
         return 2;
+      case ComplaintStatus.resolved:
+        return 3;
     }
   }
 

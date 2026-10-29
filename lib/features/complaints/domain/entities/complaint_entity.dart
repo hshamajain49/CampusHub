@@ -13,6 +13,7 @@ class ComplaintEntity extends Equatable {
   final String? location;
   final List<String> imageUrls; // Cloudinary URLs, up to 3
   final ComplaintStatus status;
+  final String? rejectionReason; // why the student last rejected the work
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -27,6 +28,7 @@ class ComplaintEntity extends Equatable {
     this.location,
     this.imageUrls = const [],
     required this.status,
+    this.rejectionReason,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -43,6 +45,7 @@ class ComplaintEntity extends Equatable {
     location,
     imageUrls,
     status,
+    rejectionReason,
     createdAt,
     updatedAt,
   ];

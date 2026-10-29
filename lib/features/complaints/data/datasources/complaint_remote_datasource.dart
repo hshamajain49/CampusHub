@@ -26,6 +26,12 @@ abstract class ComplaintRemoteDataSource {
     required ComplaintStatus status,
   });
 
+  Future<ComplaintModel> reviewResolution({
+    required String complaintId,
+    required bool approved,
+    String? reason,
+  });
+
   Stream<List<ComplaintModel>> getComplaintsByDepartment(String department);
 }
 
@@ -150,13 +156,49 @@ class ComplaintRemoteDataSourceImpl implements ComplaintRemoteDataSource {
         recipientId: before.studentId,
         type: 'complaint_status',
         title: 'Complaint Update',
-        body: 'Your complaint "${before.title}" is now ${status.displayName}.',
+        body: status == ComplaintStatus.awaitingConfirmation
+            ? 'Work on "${before.title}" is done. Please review it and '
+                  'approve or reject.'
+            : 'Your complaint "${before.title}" is now ${status.displayName}.',
         actionRoute: '/complaint/$complaintId',
       );
 
       return getComplaintById(complaintId);
     } catch (e) {
       throw ServerException('Failed to update complaint: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<ComplaintModel> reviewResolution({
+    required String complaintId,
+    required bool approved,
+    String? reason,
+  }) async {
+    final before = await getComplaintById(complaintId);
+    if (before.studentId != firebaseAuth.currentUser?.uid) {
+      throw const ServerException(
+        'Only the person who reported this can review it.',
+      );
+    }
+    if (before.status != ComplaintStatus.awaitingConfirmation) {
+      throw const ServerException('This complaint is not awaiting review.');
+    }
+
+    try {
+      final trimmed = reason?.trim();
+      await _complaintsRef.doc(complaintId).update({
+        'status': approved
+            ? ComplaintStatus.resolved.value
+            : ComplaintStatus.inProgress.value,
+        'rejectionReason': approved || trimmed == null || trimmed.isEmpty
+            ? null
+            : trimmed,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      return getComplaintById(complaintId);
+    } catch (e) {
+      throw ServerException('Failed to submit review: ${e.toString()}');
     }
   }
 

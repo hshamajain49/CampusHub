@@ -114,7 +114,20 @@ service cloud.firestore {
         && request.resource.data.status == 'pending_review';
 
       allow update: if isAdmin()
-        || (isAssignedStaff(resource.data) && changedOnly(['status', 'updatedAt']))
+        // Staff move work along but never resolve it themselves: the
+        // reporter gives final approval.
+        || (isAssignedStaff(resource.data)
+            && changedOnly(['status', 'updatedAt'])
+            && request.resource.data.status in
+                ['pending_review', 'in_progress', 'awaiting_confirmation'])
+        // Reporter approves (resolved) or rejects (back to in_progress) the
+        // finished work.
+        || (resource.data.studentId == request.auth.uid
+            && resource.data.status == 'awaiting_confirmation'
+            && changedOnly(['status', 'rejectionReason', 'updatedAt'])
+            && request.resource.data.status in ['resolved', 'in_progress']
+            && (request.resource.data.status == 'in_progress'
+                || request.resource.data.get('rejectionReason', null) == null))
         // Owner anonymising their complaint while deleting their account.
         || (resource.data.studentId == request.auth.uid
             && changedOnly(['studentName'])

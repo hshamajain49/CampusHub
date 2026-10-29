@@ -13,6 +13,8 @@ extension StatusUiExtension on ComplaintStatus {
         return AppColors.statusYellow;
       case ComplaintStatus.inProgress:
         return AppColors.statusOrange;
+      case ComplaintStatus.awaitingConfirmation:
+        return AppColors.primary;
       case ComplaintStatus.resolved:
         return AppColors.statusGreen;
     }
@@ -26,6 +28,8 @@ extension StatusUiExtension on ComplaintStatus {
         return Icons.hourglass_empty_rounded;
       case ComplaintStatus.inProgress:
         return Icons.build_outlined;
+      case ComplaintStatus.awaitingConfirmation:
+        return Icons.rate_review_outlined;
       case ComplaintStatus.resolved:
         return Icons.check_circle_outline_rounded;
     }

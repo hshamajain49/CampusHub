@@ -22,5 +22,13 @@ abstract class ComplaintRepository {
     required ComplaintStatus status,
   });
 
+  /// The complaint's owner approves ([approved]) or rejects the finished
+  /// work. Approval resolves it; rejection sends it back to In Progress.
+  Future<Either<Failure, ComplaintEntity>> reviewResolution({
+    required String complaintId,
+    required bool approved,
+    String? reason,
+  });
+
   Stream<List<ComplaintEntity>> getComplaintsByDepartment(String department);
 }

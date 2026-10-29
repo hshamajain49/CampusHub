@@ -14,6 +14,7 @@ class ComplaintModel extends ComplaintEntity {
     super.location,
     super.imageUrls,
     required super.status,
+    super.rejectionReason,
     required super.createdAt,
     required super.updatedAt,
   });
@@ -30,6 +31,7 @@ class ComplaintModel extends ComplaintEntity {
       location: json['location'] as String?,
       imageUrls: List<String>.from(json['imageUrls'] as List? ?? []),
       status: ComplaintStatus.fromString(json['status'] as String),
+      rejectionReason: json['rejectionReason'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -46,6 +48,7 @@ class ComplaintModel extends ComplaintEntity {
       'location': location,
       'imageUrls': imageUrls,
       'status': status.value,
+      'rejectionReason': rejectionReason,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };

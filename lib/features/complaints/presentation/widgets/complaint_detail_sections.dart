@@ -125,3 +125,41 @@ class _PhotoPlaceholder extends StatelessWidget {
     );
   }
 }
+
+/// Why the reporter rejected the last "work done", shown until it is redone.
+class RejectionNote extends StatelessWidget {
+  final String reason;
+  const RejectionNote({super.key, required this.reason});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.statusRed;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.feedback_outlined,
+            size: 20,
+            color: AppColors.onTint(color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Reopened by the reporter: $reason',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.onTint(color),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

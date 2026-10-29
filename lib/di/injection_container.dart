@@ -77,6 +77,7 @@ import '../features/notifications/domain/usecases/get_my_notifications_usecase.d
 import '../features/notifications/domain/usecases/mark_notification_read_usecase.dart';
 import '../features/notifications/domain/usecases/mark_all_notifications_read_usecase.dart';
 import '../features/notifications/presentation/cubit/notifications_cubit/notifications_cubit.dart';
+import '../features/complaints/domain/usecases/review_complaint_resolution_usecase.dart';
 import '../features/complaints/domain/usecases/update_complaint_status_usecase.dart';
 import '../features/complaints/domain/usecases/get_complaints_by_department_usecase.dart';
 import '../features/complaints/presentation/cubit/staff_complaints_cubit/staff_complaints_cubit.dart';
@@ -219,11 +220,12 @@ Future<void> setupDependencies() async {
   );
 
   sl.registerLazySingleton(() => UpdateComplaintStatusUseCase(sl()));
+  sl.registerLazySingleton(() => ReviewComplaintResolutionUseCase(sl()));
   sl.registerLazySingleton(() => GetComplaintsByDepartmentUseCase(sl()));
   sl.registerFactory(
     () => StaffComplaintsCubit(getComplaintsByDepartmentUseCase: sl()),
   );
-  sl.registerFactory(() => ComplaintStatusActionCubit(sl()));
+  sl.registerFactory(() => ComplaintStatusActionCubit(sl(), sl()));
   // --- Admin feature ---
   sl.registerLazySingleton<AdminRemoteDataSource>(
     () => AdminRemoteDataSourceImpl(

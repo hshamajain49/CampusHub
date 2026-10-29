@@ -69,6 +69,24 @@ class ComplaintRepositoryImpl implements ComplaintRepository {
   }
 
   @override
+  Future<Either<Failure, ComplaintEntity>> reviewResolution({
+    required String complaintId,
+    required bool approved,
+    String? reason,
+  }) async {
+    try {
+      final complaint = await remoteDataSource.reviewResolution(
+        complaintId: complaintId,
+        approved: approved,
+        reason: reason,
+      );
+      return Right(complaint);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    }
+  }
+
+  @override
   Stream<List<ComplaintEntity>> getComplaintsByDepartment(String department) {
     return remoteDataSource.getComplaintsByDepartment(department);
   }
